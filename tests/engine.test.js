@@ -258,3 +258,61 @@ test("KO presentation lands airborne fighters and lets hit flashes fade", () => 
   advance(game, 0.3);
   assert.equal(game.state.fighters[0].flash, 0);
 });
+
+test("a real hit freezes combat briefly without repeating damage or freezing effects", () => {
+  const game = create();
+  ready(game);
+  const [a, b] = game.state.fighters;
+  a.x = -1;
+  b.x = 1;
+  game.step(1 / 120, [{ attack: true }, {}]);
+  for (let i = 0; i < 30 && game.state.hitstop === 0; i++) game.step(1 / 120);
+  assert.ok(game.state.hitstop > 0);
+  const health = b.hp,
+    x = b.x,
+    time = game.state.time;
+  const life = game.state.effects.find((e) => e.type === "hit").life;
+  game.step(0.02, [{ right: true }, { left: true }]);
+  assert.equal(b.hp, health);
+  assert.equal(b.x, x);
+  assert.equal(game.state.time, time);
+  assert.ok(game.state.effects.find((e) => e.type === "hit").life < life);
+  advance(game, 0.2);
+  assert.equal(game.state.hitstop, 0);
+  assert.equal(b.hp, health);
+});
+test("a tapped move during hitstop is buffered once and expires when unusable", () => {
+  const game = create();
+  ready(game);
+  const f = game.state.fighters[0];
+  game.state.hitstop = 0.08;
+  game.step(0.01, [{ skill: true }, {}]);
+  game.step(0.01);
+  assert.equal(f.currentMove, null);
+  advance(game, 0.1);
+  assert.equal(f.currentMove?.key, "skill");
+  const cost = f.energy;
+  advance(game, 0.7);
+  assert.equal(f.currentMove, null);
+  assert.ok(f.energy >= cost);
+  game.reset();
+  ready(game);
+  game.state.fighters[0].energy = 0;
+  game.step(0.01, [{ ultimate: true }, {}]);
+  game.state.fighters[0].energy = 100;
+  advance(game, 0.2);
+  assert.equal(game.state.fighters[0].currentMove, null);
+});
+test("short recovery input is accepted without turning held attacks into autofire", () => {
+  const game = create();
+  ready(game);
+  const f = game.state.fighters[0];
+  f.x = -20;
+  game.step(1 / 120, [{ attack: true }, {}]);
+  advance(game, 0.36);
+  game.step(1 / 120, [{ attack: true }, {}]);
+  advance(game, 0.15, [{ attack: true }, {}]);
+  assert.equal(f.currentMove?.key, "attack");
+  advance(game, 1, [{ attack: true }, {}]);
+  assert.equal(f.currentMove, null);
+});

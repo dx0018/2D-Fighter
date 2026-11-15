@@ -1,5 +1,7 @@
 let uid = 0;
-export function createPortrait(character) {
+export function createPortrait(character, fallback = false) {
+  if (character.previewImage && !fallback)
+    return `<img class="rendered-portrait" src="${import.meta.env.BASE_URL}${character.previewImage}" alt="${character.name} 3D 预览" data-character-preview="${character.id}" decoding="async">`;
   const id = `p${uid++}`;
   const dora = character.bodyStyle !== "antenna" && character.id !== "po";
   return `<svg viewBox="0 0 280 300" role="img" aria-label="${character.name}" xmlns="http://www.w3.org/2000/svg"><defs><radialGradient id="${id}" cx="35%" cy="25%" r="80%"><stop stop-color="${dora ? "#48d8fa" : "#ff7e74"}"/><stop offset=".7" stop-color="${dora ? "#0796d0" : "#dc354f"}"/><stop offset="1" stop-color="${dora ? "#04628e" : "#902338"}"/></radialGradient><radialGradient id="${id}w" cx="35%" cy="25%"><stop stop-color="#fffdf0"/><stop offset="1" stop-color="#d4e6df"/></radialGradient><filter id="${id}s"><feDropShadow dx="0" dy="7" stdDeviation="5" flood-opacity=".16"/></filter></defs><ellipse cx="140" cy="278" rx="77" ry="12" fill="#07171c" opacity=".16"/><g filter="url(#${id}s)">${
@@ -11,7 +13,9 @@ export function createPortrait(character) {
 <path d="M140 62V27" stroke="#de3f53" stroke-width="13" stroke-linecap="round"/><circle cx="140" cy="23" r="15" fill="none" stroke="#eb5462" stroke-width="11"/><ellipse cx="140" cy="211" rx="64" ry="64" fill="url(#${id})"/><path d="M94 183l-35 34m126-34 35 34" stroke="url(#${id})" stroke-width="30" stroke-linecap="round"/><circle cx="55" cy="222" r="16" fill="url(#${id})"/><circle cx="224" cy="222" r="16" fill="url(#${id})"/><ellipse cx="104" cy="268" rx="28" ry="15" fill="url(#${id})"/><ellipse cx="176" cy="268" rx="28" ry="15" fill="url(#${id})"/><rect x="106" y="189" width="68" height="53" rx="14" fill="#9cabb8" stroke="#f7a39e" stroke-width="5"/><rect x="113" y="197" width="54" height="36" rx="8" fill="#c0d4da"/><path d="M117 227l41-26" stroke="#dff1ee" stroke-width="5" opacity=".7"/><ellipse cx="68" cy="109" rx="20" ry="14" fill="url(#${id})"/><ellipse cx="212" cy="109" rx="20" ry="14" fill="url(#${id})"/><ellipse cx="140" cy="112" rx="77" ry="70" fill="url(#${id})"/><ellipse cx="140" cy="119" rx="55" ry="50" fill="#f8d4b1"/><ellipse cx="121" cy="110" rx="5" ry="7" fill="#473c37"/><ellipse cx="160" cy="110" rx="5" ry="7" fill="#473c37"/><path d="M133 123q7 7 14 0m-24 12q17 20 34 0" fill="none" stroke="#a56d59" stroke-width="3" stroke-linecap="round"/><ellipse cx="109" cy="126" rx="9" ry="5" fill="#ec9e8d" opacity=".7"/><ellipse cx="171" cy="126" rx="9" ry="5" fill="#ec9e8d" opacity=".7"/>`
   }</g></svg>`;
 }
-export function mapArt(map) {
+export function mapArt(map, fallback = false) {
+  if (map.preview?.src && !fallback)
+    return `<img class="rendered-map" src="${import.meta.env.BASE_URL}${map.preview.src}" alt="${map.name} 实景预览" data-map-preview="${map.id}" decoding="async">`;
   const night = map.theme === "moon",
     sunset = map.theme === "sunset";
   const sky = night ? "#28375b" : sunset ? "#eeb097" : "#b6d9d5";

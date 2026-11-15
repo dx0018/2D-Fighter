@@ -113,7 +113,7 @@ function showMaps() {
     )}</div><p class="map-tip">✦ 木箱可击碎，招牌可摇晃。<br>试试用不同招式与场景互动。</p></aside></div><div class="flow-bottom"><button class="back-button" data-action="back-characters">← 重新选人</button><span class="selection-hint" aria-live="polite">已选择：${esc(maps[selectedMap].name)}</span><button class="button primary" data-action="fight">准备开战 <span>↗</span></button></div></main>${footer()}`;
 }
 function hudPlayer(c, p) {
-  return `<div class="hud-player hud-p${p + 1}"><div class="hud-name"><span class="p${p + 1}">P${p + 1}</span><b>${esc(c.name)}</b><span id="hp-text-${p}">100 / 100</span></div><div class="health-track"><div id="hp-${p}" class="health-fill"></div></div><div class="energy-row"><div class="energy-track"><div id="energy-${p}" class="energy-fill"></div></div><span id="energy-text-${p}">100 EP</span></div></div>`;
+  return `<div class="hud-player hud-p${p + 1}"><div class="hud-name"><span class="p${p + 1}">P${p + 1}</span><b>${esc(c.name)}</b><span id="hp-text-${p}">100 / 100</span></div><div class="health-track"><div id="hp-lag-${p}" class="health-lag"></div><div id="hp-${p}" class="health-fill"></div></div><div class="energy-row"><div class="energy-track"><div id="energy-${p}" class="energy-fill"></div></div><span id="energy-text-${p}">100 EP</span></div></div>`;
 }
 function skillTray(c, p) {
   return `<div class="skill-tray p${p + 1}"><span class="tray-player">P${p + 1}</span>${["attack", "skill", "ultimate"].map((k, i) => `<div class="skill-slot" id="slot-${p}-${k}"><kbd>${(p ? ["J", "K", "L"] : ["F", "G", "H"])[i]}</kbd><span><b>${esc(c.moves[k].name)}</b><small id="cooldown-${p}-${k}">${c.moves[k].cost || 0} EP</small></span><i class="cooldown-cover" id="cover-${p}-${k}"></i></div>`).join("")}</div>`;
@@ -141,7 +141,7 @@ function startFight() {
   const cs = getChars(),
     map = maps[selectedMap];
   game = new Game({ characters: cs, map, onEvent: (e) => audio.play(e) });
-  app.innerHTML = `${header()}<main class="battle-main"><div class="battle-heading"><span><i></i> LIVE MATCH <b>${esc(map.name)}</b></span><div><button class="text-button" data-action="help">? 操作</button><button class="text-button" data-action="fullscreen">⛶ 全屏</button><button class="button compact" data-action="pause">Ⅱ 暂停 <kbd>ESC</kbd></button></div></div><section class="battle-shell" id="battle-shell" aria-label="双人格斗场"><div id="battle-arena" class="battle-arena"></div><div class="battle-hud">${hudPlayer(cs[0], 0)}<div class="round-timer"><small>ROUND 01</small><b id="timer">99</b><span>ONE GOOD FIGHT</span></div>${hudPlayer(cs[1], 1)}</div><div class="battle-overlay" id="battle-overlay" aria-live="polite"></div><div class="arena-location"><span>STAGE 0${selectedMap + 1}</span><b>${esc(map.englishName)}</b></div><div id="feedback" class="battle-feedback" aria-live="polite"></div></section><div class="battle-bottom">${skillTray(cs[0], 0)}<span class="battle-center-label">POCKET<br><b>CLASH.</b></span>${skillTray(cs[1], 1)}</div><div class="battle-controls-note"><span><b class="p1">P1</b> WASD 移动 / 跳跃 / 蹲下</span><span>靠近对手出招 · 命中回复能量 · 大招消耗 70 EP</span><span><b class="p2">P2</b> 方向键 移动 / 跳跃 / 蹲下</span></div><details class="touch-controls"><summary>屏幕操作面板 <span>适合触屏体验；双人推荐键盘</span></summary>${touchPad(0)}${touchPad(1)}</details></main>${footer()}`;
+  app.innerHTML = `${header()}<main class="battle-main"><div class="battle-heading"><span><i></i> LIVE MATCH <b>${esc(map.name)}</b></span><div><button class="text-button" data-action="help">? 操作</button><button class="text-button" data-action="fullscreen">⛶ 全屏</button><button class="button compact" data-action="pause">Ⅱ 暂停 <kbd>ESC</kbd></button></div></div><section class="battle-shell" id="battle-shell" aria-label="双人格斗场"><div id="battle-arena" class="battle-arena"></div><div class="battle-hud">${hudPlayer(cs[0], 0)}<div class="round-timer"><small>ROUND 01</small><b id="timer">99</b><span>ONE GOOD FIGHT</span></div>${hudPlayer(cs[1], 1)}</div><div id="impact-vignette" class="impact-vignette"></div><div class="combat-callouts">${[0, 1].map((p) => `<div id="super-${p}" class="super-callout super-p${p + 1}"><small>PLAYER 0${p + 1} · ULTIMATE</small><b></b></div><div id="combo-${p}" class="combo-callout combo-p${p + 1}"><b></b><small></small></div>`).join("")}</div><div class="battle-overlay" id="battle-overlay" aria-live="polite"></div><div class="arena-location"><span>STAGE 0${selectedMap + 1}</span><b>${esc(map.englishName)}</b></div><div id="feedback" class="battle-feedback" aria-live="polite"></div></section><div class="battle-bottom">${skillTray(cs[0], 0)}<span class="battle-center-label">POCKET<br><b>CLASH.</b></span>${skillTray(cs[1], 1)}</div><div class="battle-controls-note"><span><b class="p1">P1</b> WASD 移动 / 跳跃 / 蹲下</span><span>靠近对手出招 · 命中回复能量 · 大招消耗 70 EP</span><span><b class="p2">P2</b> 方向键 移动 / 跳跃 / 蹲下</span></div><details class="touch-controls"><summary>屏幕操作面板 <span>适合触屏体验；双人推荐键盘</span></summary>${touchPad(0)}${touchPad(1)}</details></main>${footer()}`;
   try {
     arena = new ArenaRenderer(document.querySelector("#battle-arena"), {
       map,
@@ -165,6 +165,24 @@ function updateHud() {
   s.fighters.forEach((f, p) => {
     const max = f.character.maxHp || 100,
       energyMax = f.character.maxEnergy || 100;
+    const lag = document.querySelector(`#hp-lag-${p}`);
+    const percent = Math.max(0, (f.hp / max) * 100);
+    const old = Number(lag.dataset.percent ?? 100);
+    const trail = old < percent ? percent : old + (percent - old) * 0.15;
+    lag.dataset.percent = trail;
+    lag.style.width = `${trail}%`;
+    const superBox = document.querySelector(`#super-${p}`),
+      cast = f.currentMove;
+    const showSuper =
+      cast?.key === "ultimate" && cast.elapsed < cast.move.windup + 0.2;
+    superBox.classList.toggle("active", !!showSuper);
+    if (showSuper) superBox.querySelector("b").textContent = cast.move.name;
+    const combo = document.querySelector(`#combo-${p}`);
+    combo.classList.toggle("active", f.combo >= 2 && f.comboWindow > 0);
+    if (f.combo >= 2) {
+      combo.querySelector("b").textContent = `${f.combo} HITS`;
+      combo.querySelector("small").textContent = `${f.comboDamage} 伤害`;
+    }
     document.querySelector(`#hp-${p}`).style.width =
       `${Math.max(0, (f.hp / max) * 100)}%`;
     document.querySelector(`#hp-text-${p}`).textContent =
@@ -195,6 +213,11 @@ function updateHud() {
     Math.max(0, Math.ceil(s.time)),
   ).padStart(2, "0");
   document.querySelector("#timer").classList.toggle("urgent", s.time < 15);
+  document.querySelector("#impact-vignette").style.opacity = window.matchMedia(
+    "(prefers-reduced-motion: reduce)",
+  ).matches
+    ? 0
+    : (s.impactPulse || 0) * 0.5;
   const overlay = document.querySelector("#battle-overlay");
   if (!paused && s.phase !== "finished") {
     overlay.innerHTML =
@@ -413,7 +436,7 @@ function frame(now) {
   try {
     if (page === "fight" && game) {
       game.step(dt, input.read());
-      arena?.update(game.state, dt);
+      arena?.update(game.state, game.paused ? 0 : dt);
       hudTick += dt;
       if (hudTick > 0.075) {
         hudTick = 0;
@@ -444,5 +467,19 @@ if (import.meta.env.DEV)
       return arena;
     },
   };
+// Missing preview files fall back to local SVG art without blocking selection.
+document.addEventListener(
+  "error",
+  (event) => {
+    const element = event.target;
+    const character = characters.find(
+      (c) => c.id === element.dataset?.characterPreview,
+    );
+    const map = maps.find((m) => m.id === element.dataset?.mapPreview);
+    if (character) element.outerHTML = createPortrait(character, true);
+    else if (map) element.outerHTML = mapArt(map, true);
+  },
+  true,
+);
 showHome();
 requestAnimationFrame(frame);

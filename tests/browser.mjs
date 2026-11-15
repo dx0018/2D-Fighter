@@ -14,6 +14,7 @@ const browser = await chromium.launch({
   ],
 });
 const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+page.setDefaultTimeout(90000); // Software WebGL may render below real-time.
 const errors = [];
 page.on("pageerror", (e) => errors.push(e.message));
 try {

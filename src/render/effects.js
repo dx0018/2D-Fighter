@@ -1,0 +1,390 @@
+import * as THREE from "three";
+import { clamp } from "./primitives.js";
+const rnd = (n) => {
+  const x = Math.sin(n * 127.1 + 311.7) * 43758.5453;
+  return x - Math.floor(x);
+};
+function glowTexture() {
+  const c = document.createElement("canvas");
+  c.width = c.height = 128;
+  const x = c.getContext("2d"),
+    g = x.createRadialGradient(64, 64, 0, 64, 64, 64);
+  g.addColorStop(0, "rgba(255,255,255,1)");
+  g.addColorStop(0.12, "rgba(255,255,255,.8)");
+  g.addColorStop(0.4, "rgba(255,255,255,.22)");
+  g.addColorStop(1, "rgba(255,255,255,0)");
+  x.fillStyle = g;
+  x.fillRect(0, 0, 128, 128);
+  return new THREE.CanvasTexture(c);
+}
+function starGeometry() {
+  const s = new THREE.Shape();
+  for (let i = 0; i < 16; i++) {
+    const a = (i / 16) * Math.PI * 2,
+      r = i % 2 ? 0.17 : i % 4 === 0 ? 1 : 0.65;
+    const x = Math.cos(a) * r,
+      y = Math.sin(a) * r;
+    i ? s.lineTo(x, y) : s.moveTo(x, y);
+  }
+  s.closePath();
+  return new THREE.ShapeGeometry(s);
+}
+export class CombatEffects {
+  constructor(scene) {
+    this.scene = scene;
+    this.effects = new Map();
+    this.projectiles = [];
+    this.texture = glowTexture();
+    this.geo = {
+      ring: new THREE.TorusGeometry(1, 0.024, 6, 64),
+      arc: new THREE.TorusGeometry(1, 0.07, 7, 48, Math.PI * 1.1),
+      ball: new THREE.SphereGeometry(1, 14, 10),
+      beam: new THREE.CylinderGeometry(1, 1, 1, 24, 1, true),
+      spark: new THREE.ConeGeometry(0.08, 1, 5),
+      star: starGeometry(),
+      chip: new THREE.BoxGeometry(0.12, 0.32, 0.07),
+    };
+    this.light = new THREE.PointLight("#86efff", 0, 10, 2);
+    scene.add(this.light);
+  }
+  mat(color, opacity = 1) {
+    return new THREE.MeshBasicMaterial({
+      color,
+      transparent: true,
+      opacity,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide,
+      toneMapped: false,
+    });
+  }
+  mesh(g, key, color, opacity = 1) {
+    const m = new THREE.Mesh(this.geo[key], this.mat(color, opacity));
+    g.add(m);
+    return m;
+  }
+  glow(g, color, size, opacity = 0.6) {
+    const s = new THREE.Sprite(
+      new THREE.SpriteMaterial({
+        map: this.texture,
+        color,
+        transparent: true,
+        opacity,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        toneMapped: false,
+      }),
+    );
+    s.scale.setScalar(size);
+    g.add(s);
+    return s;
+  }
+  create(e) {
+    const g = new THREE.Group(),
+      color = e.color || "#d6eeff",
+      data = { group: g, parts: [], sparks: [], rings: [] };
+    this.scene.add(g);
+    if (e.type === "hit") {
+      data.core = this.mesh(g, "star", "#fff6da");
+      data.halo = this.glow(g, color, e.heavy ? 4.5 : 2.5, 0.55);
+      data.ring = this.mesh(g, "ring", color, 0.8);
+      for (let i = 0; i < (e.heavy ? 28 : 16); i++)
+        data.sparks.push(this.mesh(g, "spark", i % 3 ? color : "#fff4c9"));
+    } else if (e.type === "cast") {
+      data.halo = this.glow(g, color, 2, 0.35);
+      for (let i = 0; i < 3; i++) {
+        const m = this.mesh(g, "ring", color, 0.8);
+        data.rings.push(m);
+      }
+      for (let i = 0; i < 18; i++)
+        data.sparks.push(this.mesh(g, "ball", color));
+    } else if (e.type === "beam") {
+      data.halo = this.glow(g, color, 4, 0.7);
+      for (let i = 0; i < 3; i++) {
+        const m = this.mesh(
+          g,
+          "beam",
+          i === 0 ? "#e8ffff" : color,
+          i === 0 ? 0.95 : i === 1 ? 0.34 : 0.12,
+        );
+        m.rotation.z = Math.PI / 2;
+        data.parts.push(m);
+      }
+      for (let i = 0; i < 7; i++)
+        data.rings.push(this.mesh(g, "ring", i % 2 ? color : "#d6ffff", 0.7));
+      for (let i = 0; i < 22; i++)
+        data.sparks.push(this.mesh(g, "spark", color));
+    } else if (e.type === "pulse") {
+      data.halo = this.glow(g, color, 5, 0.5);
+      for (let i = 0; i < 4; i++) {
+        const m = this.mesh(g, "ring", i % 2 ? "#ff8fb2" : color, 0.8);
+        data.rings.push(m);
+      }
+      data.core = this.mesh(g, "ball", color, 0.13);
+      for (let i = 0; i < 30; i++)
+        data.sparks.push(
+          this.mesh(g, i % 3 ? "spark" : "star", i % 2 ? "#ffb7c7" : color),
+        );
+    } else if (e.type === "slash" || e.type === "dash") {
+      for (let i = 0; i < 3; i++)
+        data.rings.push(
+          this.mesh(g, "arc", i === 0 ? "#fff7df" : color, i === 0 ? 0.9 : 0.5),
+        );
+      data.halo = this.glow(g, color, 1.4, 0.2);
+      for (let i = 0; i < 8; i++)
+        data.sparks.push(this.mesh(g, "spark", color));
+    } else {
+      data.ring = this.mesh(
+        g,
+        "ring",
+        e.type === "break" ? "#e9bb85" : "#e7dbbd",
+        0.35,
+      );
+      data.ring.rotation.x = -Math.PI / 2;
+      for (let i = 0; i < (e.type === "break" ? 18 : 12); i++) {
+        let m;
+        if (e.type === "break") {
+          m = new THREE.Mesh(
+            this.geo.chip,
+            new THREE.MeshStandardMaterial({
+              color: i % 2 ? "#e9bb85" : color,
+              roughness: 0.9,
+            }),
+          );
+          g.add(m);
+        } else m = this.mesh(g, "ball", color, 0.15);
+        data.sparks.push(m);
+      }
+    }
+    this.effects.set(e.id, data);
+    return data;
+  }
+  remove(d) {
+    d.group.traverse((o) => {
+      if (o.material) o.material.dispose();
+    });
+    this.scene.remove(d.group);
+  }
+  update(state, clock) {
+    const alive = new Set();
+    let light = 0;
+    for (const e of state.effects) {
+      if (
+        e.type === "cast" &&
+        e.castId &&
+        state.fighters[e.owner]?.currentMove?.id !== e.castId
+      )
+        continue;
+      alive.add(e.id);
+      const d = this.effects.get(e.id) || this.create(e),
+        a = clamp(1 - e.life / e.maxLife, 0, 1),
+        fade = Math.pow(1 - a, 0.8);
+      d.group.position.set(e.x, e.y, 0.35);
+      if (e.type === "hit") {
+        d.core.scale.setScalar((e.heavy ? 1.4 : 0.85) * (1 - a * 0.75));
+        d.core.rotation.z = a * 0.6;
+        d.core.material.opacity = Math.max(0, 1 - a * 2.2);
+        d.halo.material.opacity = fade * 0.6;
+        d.ring.scale.setScalar(0.3 + a * (e.heavy ? 2.1 : 1.3));
+        d.ring.material.opacity = fade * 0.7;
+        d.sparks.forEach((p, i) => {
+          const angle =
+              (i / d.sparks.length) * Math.PI * 2 + rnd(i + e.id) * 0.3,
+            r = (0.2 + a * (e.heavy ? 4 : 2.5)) * (0.4 + rnd(i * 3));
+          p.position.set(
+            Math.cos(angle) * r,
+            Math.sin(angle) * r * 0.7 - a * a * 0.35,
+            (rnd(i) - 0.5) * a * 2,
+          );
+          p.rotation.z = angle - Math.PI / 2;
+          p.scale.set(0.6, fade * (0.3 + rnd(i) * 0.9), 0.6);
+          p.material.opacity = fade;
+        });
+      } else if (e.type === "cast") {
+        const f = state.fighters[e.owner];
+        if (f)
+          d.group.position.set(
+            f.x + (e.kind === "pulse" ? 0 : f.facing * 0.9),
+            f.y + (e.kind === "pulse" ? 1.0 : 1.7),
+            0.25,
+          );
+        const big = ["pulse", "beam"].includes(e.kind);
+        d.halo.scale.setScalar((big ? 3.2 : 1.5) * (0.4 + a));
+        d.halo.material.opacity = 0.25 + a * 0.4;
+        d.rings.forEach((r, i) => {
+          r.scale.setScalar((big ? 1.3 : 0.55) * (1 - a * 0.6) + i * 0.12);
+          r.rotation.set(clock * (i % 2 ? 2 : -2), clock * 1.5 + i, clock * 2);
+          r.material.opacity = 0.25 + a * 0.55;
+        });
+        d.sparks.forEach((p, i) => {
+          const angle = i * 2.4 + clock * 2,
+            r = (1 - a) * (big ? 2.2 : 1) + 0.1;
+          p.position.set(
+            Math.cos(angle) * r,
+            Math.sin(angle) * r * 0.8,
+            Math.sin(angle * 1.3) * r * 0.5,
+          );
+          p.scale.setScalar(0.035 + a * 0.025);
+          p.material.opacity = 0.4 + a * 0.6;
+        });
+        if (big) {
+          light = Math.max(light, a * 5);
+          this.light.position.copy(d.group.position);
+          this.light.color.set(e.color);
+        }
+      } else if (e.type === "beam") {
+        const span = e.range || 14,
+          sign = e.direction || 1,
+          width = Math.sin(Math.PI * Math.min(a * 1.4, 1)) * 0.7 + 0.12;
+        d.parts.forEach((p, i) => {
+          p.position.x = (sign * span) / 2;
+          p.scale.set(
+            width * (i === 0 ? 0.23 : i === 1 ? 0.65 : 1.1),
+            span,
+            width * (i === 0 ? 0.23 : i === 1 ? 0.65 : 1.1),
+          );
+          p.material.opacity = (i === 0 ? 0.95 : i === 1 ? 0.35 : 0.13) * fade;
+        });
+        d.halo.material.opacity = fade * 0.75;
+        d.rings.forEach((r, i) => {
+          r.position.x = sign * (0.2 + (i / 7) * span);
+          r.rotation.y = Math.PI / 2;
+          r.rotation.z = clock * 6;
+          r.scale.setScalar(width * (1 + (i % 3) * 0.28));
+          r.material.opacity = fade * 0.9;
+        });
+        d.sparks.forEach((p, i) => {
+          p.position.set(
+            sign * (((rnd(i * 7) + a) * span) % span),
+            Math.sin(i * 3.2 + clock * 6) * width * 1.4,
+            Math.cos(i * 3.2 + clock * 6) * width,
+          );
+          p.rotation.z = Math.PI / 2;
+          p.scale.set(0.45, 0.6 + rnd(i) * 1.4, 0.45);
+          p.material.opacity = fade * 0.7;
+        });
+        light = Math.max(light, 4 * fade);
+        this.light.position.copy(d.group.position);
+        this.light.color.set(e.color);
+      } else if (e.type === "pulse") {
+        const radius = (e.radius || 6.8) * Math.min(1, a * 1.8);
+        d.halo.scale.setScalar(3 + a * 5);
+        d.halo.material.opacity = fade * 0.5;
+        d.core.scale.set(radius, Math.max(0.1, 1 - a) * 2.2, radius * 0.5);
+        d.core.material.opacity = fade * 0.1;
+        d.rings.forEach((r, i) => {
+          r.rotation.set(
+            i < 2 ? -Math.PI / 2 : 0.1,
+            i > 1 ? i * 0.65 : 0,
+            clock * (i % 2 ? -1 : 1),
+          );
+          r.position.y = i < 2 ? -0.5 : i * 0.16;
+          r.scale.setScalar(Math.max(0.02, radius * (1 - i * 0.14)));
+          r.material.opacity = fade * 0.9;
+        });
+        d.sparks.forEach((p, i) => {
+          const theta = (i / d.sparks.length) * Math.PI * 2,
+            r = radius * (0.65 + rnd(i) * 0.4);
+          p.position.set(
+            Math.cos(theta) * r,
+            Math.sin(theta) * r * 0.45 + Math.sin(a * Math.PI) * 0.9,
+            Math.sin(theta * 2) * r * 0.25,
+          );
+          p.rotation.z = theta - Math.PI / 2;
+          p.scale.setScalar((i % 3 ? 0.6 : 0.3) * fade);
+          p.material.opacity = fade;
+        });
+        light = Math.max(light, 5 * fade);
+        this.light.position.copy(d.group.position);
+        this.light.color.set(e.color);
+      } else if (e.type === "slash" || e.type === "dash") {
+        const dash = e.type === "dash";
+        d.group.rotation.y = e.direction < 0 ? Math.PI : 0;
+        d.rings.forEach((r, i) => {
+          r.position.x = i * -0.16;
+          r.rotation.set(
+            dash ? Math.PI / 2 : 0.18,
+            dash ? Math.PI / 2 : 0.25,
+            -Math.PI * 0.55 + a * 0.8,
+          );
+          r.scale.set(
+            dash ? 0.7 : 0.85 + i * 0.14,
+            dash ? 1.25 : 1.1 + i * 0.14,
+            1,
+          );
+          r.material.opacity = fade * (i === 0 ? 0.9 : 0.35);
+        });
+        d.halo.material.opacity = fade * 0.25;
+        d.sparks.forEach((p, i) => {
+          p.position.set(-a * (1 + i * 0.17), Math.sin(i * 5) * 0.7, 0.1);
+          p.rotation.z = Math.PI / 2;
+          p.scale.set(0.3, fade * (dash ? 1.6 : 0.5), 0.3);
+          p.material.opacity = fade * 0.6;
+        });
+      } else {
+        d.ring.scale.setScalar(0.25 + a * (e.type === "break" ? 2.2 : 1.7));
+        d.ring.position.y = -e.y + 0.04;
+        d.ring.material.opacity = fade * 0.35;
+        d.sparks.forEach((p, i) => {
+          const theta = i * 2.4,
+            r = (0.15 + a * 2) * (rnd(i + e.id) + 0.3);
+          p.position.set(
+            Math.cos(theta) * r,
+            Math.max(
+              -e.y + 0.05,
+              e.type === "break" ? a * 3.6 - a * a * 5 : a * 0.35,
+            ),
+            Math.sin(theta) * r * 0.7,
+          );
+          p.rotation.set(a * 9 + i, a * 8, i);
+          p.scale.setScalar(
+            e.type === "break"
+              ? ((i % 3) + 0.6) * fade
+              : 0.07 + Math.sin(a * Math.PI) * 0.16,
+          );
+          if (e.type !== "break") p.material.opacity = fade * 0.18;
+        });
+      }
+    }
+    for (const [id, d] of this.effects)
+      if (!alive.has(id)) {
+        this.remove(d);
+        this.effects.delete(id);
+      }
+    this.light.intensity = light;
+    while (this.projectiles.length < state.projectiles.length) {
+      const g = new THREE.Group(),
+        d = { group: g, rings: [] };
+      d.core = this.mesh(g, "ball", "#e9ffff");
+      d.shell = this.mesh(g, "ball", "#3dd9ff", 0.18);
+      d.glow = this.glow(g, "#3ad6ff", 2.2, 0.8);
+      for (let i = 0; i < 4; i++)
+        d.rings.push(this.mesh(g, "ring", i % 2 ? "#d2ffff" : "#62dbff", 0.7));
+      this.scene.add(g);
+      this.projectiles.push(d);
+    }
+    this.projectiles.forEach((d, i) => {
+      const p = state.projectiles[i];
+      d.group.visible = !!p;
+      if (!p) return;
+      d.group.position.set(p.x, p.y, 0);
+      d.group.rotation.y = p.direction < 0 ? Math.PI : 0;
+      const r = p.radius;
+      d.core.scale.set(r * 1.5, r * 0.6, r * 0.6);
+      d.shell.scale.set(r * 2, r, r);
+      d.rings.forEach((m, j) => {
+        m.rotation.set(clock * 8 + j * 0.5, Math.PI / 2, 0);
+        m.position.x = -j * 0.28;
+        m.scale.setScalar(r * (1.2 + j * 0.25));
+        m.material.opacity = 0.7 - j * 0.14;
+      });
+    });
+  }
+  dispose() {
+    for (const d of this.effects.values()) this.remove(d);
+    for (const d of this.projectiles) this.remove(d);
+    Object.values(this.geo).forEach((g) => g.dispose());
+    this.texture.dispose();
+    this.scene.remove(this.light);
+  }
+}

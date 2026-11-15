@@ -36,6 +36,12 @@ export class Game {
         grounded: true,
         currentMove: null,
         moveProgress: 0,
+        bufferedMove: null,
+        jumpBuffer: 0,
+        combo: 0,
+        comboDamage: 0,
+        comboWindow: 0,
+        hitDirection: 0,
       })),
       objects: this.map.objects.map((object) => ({
         ...object,
@@ -51,6 +57,8 @@ export class Game {
       countdown: 3,
       winner: null,
       shake: 0,
+      hitstop: 0,
+      impactPulse: 0,
     };
     this.lastCountdown = 3;
   }
@@ -94,6 +102,7 @@ export class Game {
     for (const effect of s.effects) effect.life -= dt;
     s.effects = s.effects.filter((effect) => effect.life > 0);
     s.shake = Math.max(0, s.shake - dt * 2.5);
+    s.impactPulse = Math.max(0, s.impactPulse - dt * 5);
     for (const object of s.objects) {
       object.shake = Math.max(0, object.shake - dt * 2);
       object.flash = Math.max(0, object.flash - dt);
@@ -119,10 +128,35 @@ export class Game {
       }
       return;
     }
+    // Preserve brief button taps through impact freeze and the end of recovery.
+    s.fighters.forEach((f, id) => {
+      const key = ["ultimate", "skill", "attack"].find(
+        (key) =>
+          pressed[id][key] &&
+          f.energy >= f.character.moves[key].cost &&
+          f.cooldowns[key] <= 0.12,
+      );
+      if (key) f.bufferedMove = { key, remaining: 0.12 };
+      if (pressed[id].jump) f.jumpBuffer = 0.12;
+    });
+    if (s.hitstop > EPS) {
+      s.hitstop = Math.max(0, s.hitstop - dt);
+      return;
+    }
     s.time = Math.max(0, s.time - dt);
     const strikes = [];
     s.fighters.forEach((f, id) => {
       f.actionTime += dt;
+      if (f.bufferedMove) {
+        f.bufferedMove.remaining -= dt;
+        if (f.bufferedMove.remaining <= 0) f.bufferedMove = null;
+      }
+      f.jumpBuffer = Math.max(0, f.jumpBuffer - dt);
+      f.comboWindow = Math.max(0, f.comboWindow - dt);
+      if (f.comboWindow <= 0) {
+        f.combo = 0;
+        f.comboDamage = 0;
+      }
       f.flash = Math.max(0, f.flash - dt);
       f.invulnerable = Math.max(0, f.invulnerable - dt);
       f.stun = Math.max(0, f.stun - dt);
@@ -134,18 +168,22 @@ export class Game {
         f.facing = other.x >= f.x ? 1 : -1;
       if (!f.currentMove && f.stun <= EPS) {
         f.crouching = !!inputs[id].crouch && f.grounded;
-        if (pressed[id].jump && f.grounded && !f.crouching) {
+        if (f.jumpBuffer > 0 && f.grounded && !f.crouching) {
           f.vy = f.character.jump;
+          f.jumpBuffer = 0;
           f.grounded = false;
           this.effect("dust", f.x, 0.15, "#e5d8c4", 0.3);
         }
         let chosen = ["ultimate", "skill", "attack"].find(
           (key) =>
-            pressed[id][key] &&
+            f.bufferedMove?.key === key &&
             f.cooldowns[key] <= EPS &&
             f.energy >= f.character.moves[key].cost,
         );
-        if (chosen) this.beginMove(f, chosen);
+        if (chosen) {
+          f.bufferedMove = null;
+          this.beginMove(f, chosen);
+        }
       }
       if (f.currentMove) {
         const cast = f.currentMove;
@@ -257,11 +295,12 @@ export class Game {
       f.y + 1.4,
       move.color,
       key === "ultimate" ? move.windup : 0.18,
-      { owner: f.id, kind: move.kind },
+      { owner: f.id, kind: move.kind, castId: f.currentMove.id },
     );
   }
   release(f, cast) {
     const move = cast.move;
+    this.event("release", { player: f.id, kind: move.kind, move: cast.key });
     if (move.kind === "projectile") {
       this.state.projectiles.push({
         id: this.nextId++,
@@ -283,12 +322,12 @@ export class Game {
         f.x + cast.facing * 0.8,
         f.y + 1.3,
         move.color,
-        0.42,
+        0.56,
         { direction: cast.facing, range: move.range, owner: f.id },
       );
       this.state.shake = Math.max(this.state.shake, 0.25);
     } else if (move.kind === "pulse") {
-      this.effect("pulse", f.x, f.y + 0.6, move.color, 0.65, {
+      this.effect("pulse", f.x, f.y + 0.6, move.color, 0.82, {
         radius: move.range,
         owner: f.id,
       });
@@ -299,7 +338,7 @@ export class Game {
         f.x + cast.facing * 1.2,
         f.y + 1.2,
         move.color,
-        0.23,
+        0.32,
         { direction: cast.facing, owner: f.id },
       );
   }
@@ -421,6 +460,15 @@ export class Game {
         attacker.character.maxEnergy,
         attacker.energy + 12,
       );
+    attacker.combo += 1;
+    attacker.comboDamage += move.damage;
+    attacker.comboWindow = 1.35;
+    target.hitDirection = direction;
+    this.state.hitstop = Math.max(
+      this.state.hitstop,
+      move.impact?.stop ?? 0.055,
+    );
+    this.state.impactPulse = move.damage >= 30 ? 0.65 : 0.24;
     target.stun = move.stun;
     target.invulnerable = 0.12;
     target.flash = 0.16;
@@ -431,7 +479,7 @@ export class Game {
     this.setAction(target, "hurt");
     this.state.shake = Math.max(
       this.state.shake,
-      move.damage >= 30 ? 0.55 : 0.15,
+      move.impact?.shake ?? (move.damage >= 30 ? 0.7 : 0.3),
     );
     this.effect(
       "hit",
@@ -439,7 +487,7 @@ export class Game {
       target.y + 1.35,
       move.color,
       0.32,
-      { damage: move.damage, heavy: move.damage >= 30 },
+      { damage: move.damage, heavy: move.damage >= 30, direction },
     );
     this.event("hit", {
       player: attacker.id,
@@ -447,6 +495,8 @@ export class Game {
       damage: move.damage,
       heavy: move.damage >= 30,
       color: move.color,
+      combo: attacker.combo,
+      kind: move.kind,
     });
   }
   separateFighters() {
@@ -478,8 +528,11 @@ export class Game {
       Math.abs(healthA - healthB) <= EPS ? "draw" : healthA > healthB ? 0 : 1;
     s.phase = "finished";
     s.projectiles = [];
+    s.hitstop = 0;
     for (const f of s.fighters) {
       f.currentMove = null;
+      f.bufferedMove = null;
+      f.jumpBuffer = 0;
       f.vx = 0;
       f.vy = 0;
       f.y = 0;

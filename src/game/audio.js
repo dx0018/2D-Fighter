@@ -8,8 +8,23 @@ export class GameAudio {
   }
   unlock() {
     try {
-      this.context ||= new (window.AudioContext || window.webkitAudioContext)();
-      this.context.resume();
+      if (!this.context) {
+        this.context = new (window.AudioContext || window.webkitAudioContext)();
+        this.master = this.context.createGain();
+        this.master.gain.value = 0.52;
+        const limiter = this.context.createDynamicsCompressor();
+        limiter.threshold.value = -18;
+        limiter.knee.value = 12;
+        limiter.ratio.value = 5;
+        this.master.connect(limiter);
+        limiter.connect(this.context.destination);
+        const n = this.context.sampleRate;
+        this.noise = this.context.createBuffer(1, n, this.context.sampleRate);
+        const data = this.noise.getChannelData(0);
+        for (let i = 0; i < n; i++) data[i] = Math.random() * 2 - 1;
+      }
+      if (this.context.state === "suspended")
+        this.context.resume().catch(() => {});
     } catch {}
   }
   toggle() {
@@ -20,44 +35,122 @@ export class GameAudio {
     this.unlock();
     return this.enabled;
   }
-  play(event) {
-    if (!this.enabled || !this.context) return;
-    const type = event.type;
+  tone(from, to, duration, volume, type = "sine", delay = 0) {
     const ctx = this.context,
-      now = ctx.currentTime;
-    const casts = {
-      projectile: [420, 840],
-      dash: [150, 220, 330],
-      beam: [110, 220, 440, 880],
-      pulse: [196, 247, 294, 392],
-      melee: [210, 120],
+      t = ctx.currentTime + delay,
+      o = ctx.createOscillator(),
+      g = ctx.createGain();
+    o.type = type;
+    o.frequency.setValueAtTime(from, t);
+    o.frequency.exponentialRampToValueAtTime(Math.max(25, to), t + duration);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(volume, t + 0.006);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + duration);
+    o.connect(g);
+    g.connect(this.master);
+    o.start(t);
+    o.stop(t + duration + 0.01);
+    o.onended = () => {
+      o.disconnect();
+      g.disconnect();
     };
-    const patterns =
-      type === "end"
-        ? [523, 659, 784, 1047]
-        : type === "break"
-          ? [180, 100, 55]
-          : type === "hit"
-            ? [180, 60]
-            : type === "cast"
-              ? casts[event.kind] || [330, 660]
-              : [540];
-    patterns.forEach((frequency, i) => {
-      const osc = ctx.createOscillator(),
-        gain = ctx.createGain();
-      osc.type = type === "hit" || type === "break" ? "triangle" : "sine";
-      osc.frequency.setValueAtTime(frequency, now + i * 0.065);
-      osc.frequency.exponentialRampToValueAtTime(
-        Math.max(30, frequency * 0.5),
-        now + i * 0.065 + 0.13,
+  }
+  noiseBurst(duration, frequency, volume, delay = 0) {
+    const ctx = this.context,
+      t = ctx.currentTime + delay,
+      s = ctx.createBufferSource(),
+      f = ctx.createBiquadFilter(),
+      g = ctx.createGain();
+    s.buffer = this.noise;
+    f.type = "bandpass";
+    f.frequency.setValueAtTime(frequency, t);
+    f.frequency.exponentialRampToValueAtTime(
+      Math.max(80, frequency * 0.25),
+      t + duration,
+    );
+    f.Q.value = 0.6;
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(volume, t + 0.005);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + duration);
+    s.connect(f);
+    f.connect(g);
+    g.connect(this.master);
+    s.start(t);
+    s.stop(t + duration + 0.01);
+    s.onended = () => {
+      s.disconnect();
+      f.disconnect();
+      g.disconnect();
+    };
+  }
+  play(e) {
+    if (!this.enabled || !this.context || this.context.state !== "running")
+      return;
+    if (e.type === "hit") {
+      this.tone(
+        e.heavy ? 110 : 180,
+        42,
+        e.heavy ? 0.27 : 0.13,
+        e.heavy ? 0.42 : 0.28,
+        "triangle",
       );
-      gain.gain.setValueAtTime(0.0001, now + i * 0.065);
-      gain.gain.exponentialRampToValueAtTime(0.065, now + i * 0.065 + 0.008);
-      gain.gain.exponentialRampToValueAtTime(0.0001, now + i * 0.065 + 0.18);
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start(now + i * 0.065);
-      osc.stop(now + i * 0.065 + 0.2);
-    });
+      this.noiseBurst(e.heavy ? 0.28 : 0.13, e.heavy ? 1700 : 2600, 0.25);
+      if (e.heavy) this.tone(60, 28, 0.35, 0.32);
+      return;
+    }
+    if (e.type === "cast") {
+      if (e.kind === "melee") {
+        this.noiseBurst(0.12, 2100, 0.09);
+        return;
+      }
+      if (e.kind === "projectile") {
+        this.tone(280, 720, 0.16, 0.1);
+        this.noiseBurst(0.22, 1800, 0.19, 0.23);
+        this.tone(230, 70, 0.22, 0.16, "sine", 0.24);
+      }
+      if (e.kind === "dash") {
+        this.noiseBurst(0.35, 1400, 0.16, 0.18);
+        this.tone(160, 60, 0.27, 0.18, "triangle", 0.18);
+      }
+      if (e.kind === "beam") {
+        this.tone(140, 850, 0.75, 0.12, "triangle");
+        this.tone(210, 1275, 0.75, 0.07);
+      }
+      if (e.kind === "pulse") {
+        [196, 247, 294].forEach((n, i) =>
+          this.tone(n, n * 2, 0.68, 0.09, "sine", i * 0.035),
+        );
+      }
+    } else if (e.type === "release") {
+      if (e.kind === "beam") {
+        this.noiseBurst(0.5, 3100, 0.23);
+        this.tone(620, 95, 0.55, 0.24, "sawtooth");
+        this.tone(80, 35, 0.35, 0.25);
+      }
+      if (e.kind === "pulse") {
+        this.tone(95, 28, 0.45, 0.4, "triangle");
+        this.noiseBurst(0.34, 1500, 0.25);
+        [392, 494, 587].forEach((n, i) =>
+          this.tone(n, n * 0.6, 0.5, 0.06, "sine", i * 0.04),
+        );
+      }
+    } else if (e.type === "break") {
+      this.noiseBurst(0.35, 1800, 0.24);
+      this.tone(150, 45, 0.2, 0.19, "triangle");
+    } else if (e.type === "objectHit") {
+      this.noiseBurst(0.09, 1000, 0.14);
+      this.tone(180, 90, 0.09, 0.14, "triangle");
+    } else if (e.type === "end") {
+      [523, 659, 784, 1047].forEach((n, i) =>
+        this.tone(n, n, 0.3, 0.13, "sine", i * 0.12),
+      );
+    } else if (e.type === "countdown" || e.type === "start") {
+      this.tone(
+        e.type === "start" ? 880 : 440,
+        e.type === "start" ? 880 : 440,
+        0.14,
+        0.12,
+      );
+    }
   }
 }

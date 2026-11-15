@@ -11,6 +11,7 @@ try {
   const page = await browser.newPage({ viewport: { width: 390, height: 844 } }),
     errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
+  await page.route("**/previews/*.webp", (route) => route.abort());
   // Exercise the supported asset/renderer failure path, preserving native Canvas2D.
   await page.addInitScript(() => {
     const native = HTMLCanvasElement.prototype.getContext;
@@ -21,9 +22,23 @@ try {
   await page.goto(process.env.TEST_URL || "http://localhost:5173");
   const click = (a) => page.locator(`[data-action="${a}"]`).first().click();
   await click("start");
+  await page.waitForFunction(
+    () => !document.querySelector("img[data-character-preview]"),
+  );
+  assert.ok(
+    (await page.locator(".fighter-card svg").count()) > 0,
+    "missing character renders fall back to SVG",
+  );
   for (const p of [0, 1])
     await page.locator(`[data-action="ready"][data-player="${p}"]`).click();
   await click("to-maps");
+  await page.waitForFunction(
+    () => !document.querySelector("img[data-map-preview]"),
+  );
+  assert.ok(
+    (await page.locator(".map-card svg").count()) > 0,
+    "missing map previews fall back to SVG",
+  );
   await click("fight");
   await page.waitForFunction(() => __POCKET__.game.state.phase === "fighting");
   assert.ok(

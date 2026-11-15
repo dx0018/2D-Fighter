@@ -2459,3 +2459,185 @@ kbd {
     grid-column: 1/-1;
   }
 }
+/* Impact feedback is kept at the edge of the arena, clear of both fighters. */
+.health-track {
+  position: relative;
+}
+.health-fill {
+  position: relative;
+  z-index: 1;
+}
+.health-lag {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 100%;
+  background: #f1a78b;
+  opacity: 0.8;
+}
+.hud-p2 .health-lag {
+  left: auto;
+  right: 0;
+}
+.impact-vignette {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  box-shadow: inset 0 0 90px #fff2b3;
+  mix-blend-mode: screen;
+}
+.combat-callouts {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.super-callout {
+  position: absolute;
+  top: 24%;
+  left: 23px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 21px 14px 15px;
+  border-left: 3px solid #8deaff;
+  background: linear-gradient(90deg, #113c5ce8, #16374900);
+  transform: translateX(-15px);
+  opacity: 0;
+  transition:
+    opacity 0.12s,
+    transform 0.15s;
+  max-width: 40%;
+}
+.super-callout small {
+  font:
+    600 9px "Barlow Condensed",
+    sans-serif;
+  letter-spacing: 2px;
+  color: #a5eaff;
+}
+.super-callout b {
+  font-size: 23px;
+  font-weight: 900;
+  color: #efffff;
+  text-shadow: 0 0 15px #42d0ff;
+}
+.super-p2 {
+  left: auto;
+  right: 23px;
+  border-left: 0;
+  border-right: 3px solid #ffcd8c;
+  text-align: right;
+  background: linear-gradient(270deg, #733143e8, #57344700);
+  transform: translateX(15px);
+}
+.super-p2 small {
+  color: #ffe2a7;
+}
+.super-p2 b {
+  text-shadow: 0 0 15px #ff926e;
+}
+.combo-callout {
+  position: absolute;
+  top: 21%;
+  left: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  opacity: 0;
+  transform: scale(0.9);
+  transition:
+    opacity 0.15s,
+    transform 0.15s;
+  text-shadow: 0 2px 3px #24393b;
+}
+.combo-callout b {
+  font:
+    800 32px "Barlow Condensed",
+    sans-serif;
+  color: #ffdc8c;
+  font-style: italic;
+  letter-spacing: 1px;
+}
+.combo-callout small {
+  font-size: 10px;
+  color: #fff1cf;
+}
+.combo-p2 {
+  left: auto;
+  right: 28px;
+  text-align: right;
+}
+.super-callout.active,
+.combo-callout.active {
+  opacity: 1;
+  transform: none;
+}
+.combat-callouts:has(.super-callout.active) .combo-callout {
+  top: 39%;
+}
+@media (max-width: 600px) {
+  .super-callout {
+    left: 11px;
+    padding: 8px 12px;
+    max-width: 47%;
+    top: 27%;
+  }
+  .super-p2 {
+    left: auto;
+    right: 11px;
+  }
+  .super-callout b {
+    font-size: 15px;
+  }
+  .super-callout small {
+    font-size: 6px;
+    letter-spacing: 1px;
+  }
+  .combo-callout {
+    left: 15px;
+    top: 29%;
+  }
+  .combo-p2 {
+    left: auto;
+    right: 15px;
+  }
+  .combo-callout b {
+    font-size: 24px;
+  }
+  .combo-callout small {
+    font-size: 9px;
+  }
+}
+.rendered-portrait {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 8px 8px #05162126);
+}
+.rendered-map {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.fighter-card .portrait {
+  height: 210px;
+}
+.fighter-card .rendered-portrait {
+  transform: scale(1.04);
+  transition: transform 0.2s;
+}
+.fighter-card:hover .rendered-portrait {
+  transform: scale(1.1);
+}
+@media (max-width: 800px) {
+  .fighter-card .portrait {
+    height: 145px;
+  }
+}
+@media (max-width: 500px) {
+  .fighter-card .portrait {
+    height: 185px;
+  }
+}
