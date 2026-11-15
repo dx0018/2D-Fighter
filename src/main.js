@@ -1,0 +1,448 @@
+import "./style.css";
+import "@fontsource/barlow-condensed/latin-600.css";
+import "@fontsource/barlow-condensed/latin-700.css";
+import "@fontsource/barlow-condensed/latin-800.css";
+import { characters, maps } from "./config/content.js";
+import { Game } from "./game/engine.js";
+import { Input } from "./game/input.js";
+import { GameAudio } from "./game/audio.js";
+import { ArenaRenderer } from "./render/arena.js";
+import { createPortrait, mapArt } from "./render/portraits.js";
+
+const app = document.querySelector("#app");
+const audio = new GameAudio();
+let page = "home",
+  selected = [0, 1],
+  ready = [false, false],
+  selectedMap = 0,
+  game = null,
+  arena = null,
+  preview = null,
+  paused = false,
+  helpOpen = false,
+  finishedHandled = false,
+  hudTick = 0,
+  last = performance.now();
+const input = new Input(() => togglePause());
+const esc = (s) =>
+  String(s).replace(
+    /[&<>"']/g,
+    (c) =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[
+        c
+      ],
+  );
+const getChars = () => selected.map((i) => characters[i]);
+function header() {
+  return `<header class="site-header"><button class="brand" data-action="home" aria-label="口袋对决主页"><span class="brand-mark">p<span>c</span><i></i></span><span>POCKET<span>CLASH<span class="brand-dot">.</span></span></span></button><span class="header-caption">小小英雄，无限可能</span><nav><button class="text-button" data-action="help"><span class="key-symbol">?</span><span>操作说明</span></button><button class="icon-button sound" data-action="sound" aria-label="${audio.enabled ? "关闭" : "开启"}音效" aria-pressed="${audio.enabled}">${audio.enabled ? "♫" : "♩"}</button><span class="local-pill"><i></i> 本地双人</span></nav></header>`;
+}
+function footer() {
+  return `<footer class="site-footer"><span>POCKET CLASH <b>© 2026</b></span><span>两位玩家 · 一台键盘 · 无数次再来一局</span><span class="footer-right">MADE FOR FRIENDLY RIVALRIES <i>✳</i></span></footer>`;
+}
+function steps(active) {
+  return `<div class="steps" aria-label="游戏流程">${["选择角色", "选择场地", "准备开战"].map((x, i) => `<span class="${active === i ? "current" : active > i ? "done" : ""}"><b>${active > i ? "✓" : `0${i + 1}`}</b>${x}</span>${i < 2 ? "<i></i>" : ""}`).join("")}</div>`;
+}
+function teardown() {
+  arena?.dispose();
+  arena = null;
+  preview = null;
+  input.enabled = false;
+  input.clear();
+  paused = false;
+  helpOpen = false;
+  document.querySelector(".modal-root")?.remove();
+}
+function showHome() {
+  teardown();
+  page = "home";
+  game = null;
+  app.innerHTML = `${header()}<main class="home"><div class="hero-topline"><span><i></i> THE COUCH IS YOUR ARENA</span><span>VOL. 01 / 好朋友，来一场</span></div><div class="hero-grid"><section class="hero-copy"><div class="eyebrow"><span class="tiny-star">✳</span> 口袋对决 · 2.5D 格斗俱乐部</div><h1>小小英雄。<br><span>大大对决。</span><sup>✦</sup></h1><p>熟悉的伙伴，意想不到的对手。<br>和身边的朋友，共享一场热热闹闹的对决。</p><div class="hero-actions"><button class="button primary large" data-action="start">开始游戏 <span>↗</span></button><button class="button ghost" data-action="help">怎么玩 <span>→</span></button></div><div class="hero-notes"><span><b>${String(characters.length).padStart(2, "0")}</b> 位首发英雄</span><i></i><span><b>${String(maps.length).padStart(2, "0")}</b> 个冒险场地</span><i></i><span>无需下载，即刻开战</span></div></section><section class="hero-preview" aria-label="卡通对战场景预览"><div class="preview-top"><span><i></i> LIVE FROM THE NEIGHBORHOOD</span><span>01 — ${esc(maps[0].name)}</span></div><div id="home-arena" class="home-arena"></div><div class="hero-versus"><span><b class="p1">P1</b> 哆啦A梦</span><i>VS</i><span>天线宝宝 · 小波 <b class="p2">P2</b></span></div><span class="preview-sticker">READY,<br>SET, <em>PLAY!</em></span><div class="preview-bottom"><span>一场友好的较量</span><span>ROUND 01 <i>↗</i></span></div></section></div><section class="feature-strip"><article><span class="feature-number">01</span><div><h3>选你的快乐搭子</h3><p>经典伙伴，各有拿手绝活</p></div><span>↗</span></article><article><span class="feature-number">02</span><div><h3>把街角变成擂台</h3><p>木箱能打碎，招牌会摇晃</p></div><span>↗</span></article><article><span class="feature-number">03</span><div><h3>同屏开打，快乐加倍</h3><p>双人键盘，随时再来一局</p></div><span>↗</span></article></section></main>${footer()}`;
+  try {
+    preview = new Game({
+      characters: [characters[0], characters[1]],
+      map: maps[0],
+    });
+    preview.state.fighters[0].x = -3.5;
+    preview.state.fighters[1].x = 3.5;
+    arena = new ArenaRenderer(document.querySelector("#home-arena"), {
+      map: maps[0],
+      characters: [characters[0], characters[1]],
+      onError: rendererWarning,
+    });
+  } catch (e) {
+    rendererWarning(e);
+  }
+}
+function showCharacters(reset = false) {
+  teardown();
+  page = "characters";
+  game = null;
+  if (reset) ready = [false, false];
+  app.innerHTML = `${header()}<main class="flow-main">${steps(0)}<div class="section-heading"><div><div class="eyebrow">CHOOSE YOUR FIGHTER</div><h1>今天，谁来出招<span>？</span></h1><p>为两位玩家选择角色，然后分别确认。也可以选择同一位英雄。</p></div><span class="section-counter">${String(characters.length).padStart(2, "0")} <small>FIGHTERS</small></span></div><div class="player-select-grid">${[
+    0, 1,
+  ]
+    .map(
+      (p) =>
+        `<section class="player-panel player-${p + 1}"><div class="player-panel-heading"><span class="player-label p${p + 1}">PLAYER 0${p + 1}</span><span class="status ${ready[p] ? "confirmed" : ""}">${ready[p] ? "✓ 已准备" : "选择你的英雄"}</span></div><div class="fighter-choices">${characters.map((c, i) => `<button class="fighter-card ${selected[p] === i ? "selected" : ""}" data-action="choose-character" data-player="${p}" data-index="${i}" aria-pressed="${selected[p] === i}" style="--fighter-color:${c.color}"><span class="fighter-no">${String(i + 1).padStart(2, "0")}</span><div class="portrait">${createPortrait(c)}</div><span class="fighter-caption"><b>${esc(c.name)}</b><small>${esc(c.englishName)}</small></span><span class="selection-check">${selected[p] === i ? "✓" : "＋"}</span></button>`).join("")}</div><div class="fighter-detail"><div><h3>${esc(characters[selected[p]].name)}</h3><span>${esc(characters[selected[p]].tagline)}</span></div><p>${esc(characters[selected[p]].description)}</p><div class="stat-row">${[
+          ["power", "力量"],
+          ["speed", "速度"],
+          ["range", "射程"],
+        ]
+          .map(
+            ([k, n]) =>
+              `<span>${n}<i>${Array.from({ length: 5 }, (_, j) => `<b class="${j < characters[selected[p]].stats[k] ? "filled" : ""}"></b>`).join("")}</i></span>`,
+          )
+          .join(
+            "",
+          )}</div></div><button class="button ${ready[p] ? "ready-button" : "confirm-button"} full" data-action="ready" data-player="${p}">${ready[p] ? "✓ 准备完成 · 点击取消" : `确认 P${p + 1} 角色`} <span>${ready[p] ? "✓" : "→"}</span></button><div class="player-keys">${p === 0 ? "<kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd><span>移动</span><kbd>F</kbd><kbd>G</kbd><kbd>H</kbd><span>招式</span>" : "<kbd>↑</kbd><kbd>←</kbd><kbd>↓</kbd><kbd>→</kbd><span>移动</span><kbd>J</kbd><kbd>K</kbd><kbd>L</kbd><span>招式</span>"}</div></section>`,
+    )
+    .join(
+      "",
+    )}</div><div class="flow-bottom"><button class="back-button" data-action="home">← 返回主页</button><span class="selection-hint">${ready.every(Boolean) ? "双方已准备，选择你们的战场。" : "等待双方确认角色"}</span><button class="button primary" data-action="to-maps" ${ready.every(Boolean) ? "" : "disabled"}>选择场地 <span>→</span></button></div></main>${footer()}`;
+}
+function showMaps() {
+  teardown();
+  page = "maps";
+  app.innerHTML = `${header()}<main class="flow-main">${steps(1)}<div class="section-heading"><div><div class="eyebrow">PICK YOUR PLAYGROUND</div><h1>找个地方，过两招<span>。</span></h1><p>每一处街角，都有不一样的故事。</p></div><button class="button ghost" data-action="random">⚄ 随机选图</button></div><div class="map-layout"><div class="map-list">${maps.map((m, i) => `<button class="map-card ${selectedMap === i ? "selected" : ""}" data-action="choose-map" data-index="${i}" aria-pressed="${selectedMap === i}"><div class="map-thumb">${mapArt(m)}<span>${m.tag || "LOCAL ARENA"}</span></div><div class="map-caption"><span><small>STAGE 0${i + 1}</small><b>${esc(m.name)}</b></span><i>${selectedMap === i ? "✓" : "↗"}</i></div></button>`).join("")}</div><aside class="map-detail"><div class="eyebrow">YOUR NEXT DESTINATION</div><h2>${esc(maps[selectedMap].name)}</h2><p>${esc(maps[selectedMap].description)}</p><div class="map-properties"><span>场地跨度 <b>${maps[selectedMap].bounds.right - maps[selectedMap].bounds.left} m</b></span><span>互动机关 <b>${maps[selectedMap].objects.length} 处</b></span><span>对战规则 <b>99 秒 · 一局定胜负</b></span></div><div class="map-matchup">${getChars()
+    .map(
+      (c, p) =>
+        `<div><div class="mini-portrait">${createPortrait(c)}</div><span class="p${p + 1}">P${p + 1}<b>${esc(c.name)}</b></span></div>`,
+    )
+    .join(
+      "<i>VS</i>",
+    )}</div><p class="map-tip">✦ 木箱可击碎，招牌可摇晃。<br>试试用不同招式与场景互动。</p></aside></div><div class="flow-bottom"><button class="back-button" data-action="back-characters">← 重新选人</button><span class="selection-hint" aria-live="polite">已选择：${esc(maps[selectedMap].name)}</span><button class="button primary" data-action="fight">准备开战 <span>↗</span></button></div></main>${footer()}`;
+}
+function hudPlayer(c, p) {
+  return `<div class="hud-player hud-p${p + 1}"><div class="hud-name"><span class="p${p + 1}">P${p + 1}</span><b>${esc(c.name)}</b><span id="hp-text-${p}">100 / 100</span></div><div class="health-track"><div id="hp-${p}" class="health-fill"></div></div><div class="energy-row"><div class="energy-track"><div id="energy-${p}" class="energy-fill"></div></div><span id="energy-text-${p}">100 EP</span></div></div>`;
+}
+function skillTray(c, p) {
+  return `<div class="skill-tray p${p + 1}"><span class="tray-player">P${p + 1}</span>${["attack", "skill", "ultimate"].map((k, i) => `<div class="skill-slot" id="slot-${p}-${k}"><kbd>${(p ? ["J", "K", "L"] : ["F", "G", "H"])[i]}</kbd><span><b>${esc(c.moves[k].name)}</b><small id="cooldown-${p}-${k}">${c.moves[k].cost || 0} EP</small></span><i class="cooldown-cover" id="cover-${p}-${k}"></i></div>`).join("")}</div>`;
+}
+function touchPad(p) {
+  return `<div class="touch-pad"><b class="p${p + 1}">P${p + 1}</b>${[
+    ["left", "←"],
+    ["jump", "↑"],
+    ["crouch", "↓"],
+    ["right", "→"],
+    ["attack", "攻"],
+    ["skill", "技"],
+    ["ultimate", "必"],
+  ]
+    .map(
+      ([action, label]) =>
+        `<button data-touch="${p}:${action}" aria-label="P${p + 1} ${action}">${label}</button>`,
+    )
+    .join("")}</div>`;
+}
+function startFight() {
+  teardown();
+  page = "fight";
+  finishedHandled = false;
+  const cs = getChars(),
+    map = maps[selectedMap];
+  game = new Game({ characters: cs, map, onEvent: (e) => audio.play(e) });
+  app.innerHTML = `${header()}<main class="battle-main"><div class="battle-heading"><span><i></i> LIVE MATCH <b>${esc(map.name)}</b></span><div><button class="text-button" data-action="help">? 操作</button><button class="text-button" data-action="fullscreen">⛶ 全屏</button><button class="button compact" data-action="pause">Ⅱ 暂停 <kbd>ESC</kbd></button></div></div><section class="battle-shell" id="battle-shell" aria-label="双人格斗场"><div id="battle-arena" class="battle-arena"></div><div class="battle-hud">${hudPlayer(cs[0], 0)}<div class="round-timer"><small>ROUND 01</small><b id="timer">99</b><span>ONE GOOD FIGHT</span></div>${hudPlayer(cs[1], 1)}</div><div class="battle-overlay" id="battle-overlay" aria-live="polite"></div><div class="arena-location"><span>STAGE 0${selectedMap + 1}</span><b>${esc(map.englishName)}</b></div><div id="feedback" class="battle-feedback" aria-live="polite"></div></section><div class="battle-bottom">${skillTray(cs[0], 0)}<span class="battle-center-label">POCKET<br><b>CLASH.</b></span>${skillTray(cs[1], 1)}</div><div class="battle-controls-note"><span><b class="p1">P1</b> WASD 移动 / 跳跃 / 蹲下</span><span>靠近对手出招 · 命中回复能量 · 大招消耗 70 EP</span><span><b class="p2">P2</b> 方向键 移动 / 跳跃 / 蹲下</span></div><details class="touch-controls"><summary>屏幕操作面板 <span>适合触屏体验；双人推荐键盘</span></summary>${touchPad(0)}${touchPad(1)}</details></main>${footer()}`;
+  try {
+    arena = new ArenaRenderer(document.querySelector("#battle-arena"), {
+      map,
+      characters: cs,
+      onError: rendererWarning,
+    });
+  } catch (e) {
+    rendererWarning(e);
+  }
+  input.enabled = true;
+  updateHud();
+}
+function rendererWarning(error) {
+  console.warn("Renderer fallback", error);
+  const target = document.querySelector("#feedback");
+  if (target) target.textContent = "已启用兼容画面，游戏操作保持可用";
+}
+function updateHud() {
+  if (!game || page !== "fight") return;
+  const s = game.state;
+  s.fighters.forEach((f, p) => {
+    const max = f.character.maxHp || 100,
+      energyMax = f.character.maxEnergy || 100;
+    document.querySelector(`#hp-${p}`).style.width =
+      `${Math.max(0, (f.hp / max) * 100)}%`;
+    document.querySelector(`#hp-text-${p}`).textContent =
+      `${Math.ceil(f.hp)} / ${max}`;
+    document.querySelector(`#energy-${p}`).style.width =
+      `${(f.energy / energyMax) * 100}%`;
+    document.querySelector(`#energy-text-${p}`).textContent =
+      `${Math.floor(f.energy)} EP`;
+    ["attack", "skill", "ultimate"].forEach((k) => {
+      const cd = f.cooldowns[k] || 0,
+        cost = f.character.moves[k].cost || 0;
+      document.querySelector(`#cooldown-${p}-${k}`).textContent =
+        cd > 0.05
+          ? `${cd.toFixed(1)} 秒`
+          : f.energy < cost
+            ? `能量不足 · ${cost} EP`
+            : cost
+              ? `就绪 · ${cost} EP`
+              : "就绪";
+      document
+        .querySelector(`#slot-${p}-${k}`)
+        .classList.toggle("unavailable", cd > 0.05 || f.energy < cost);
+      document.querySelector(`#cover-${p}-${k}`).style.transform =
+        `scaleY(${Math.min(1, cd / (f.character.moves[k].cooldown || 1))})`;
+    });
+  });
+  document.querySelector("#timer").textContent = String(
+    Math.max(0, Math.ceil(s.time)),
+  ).padStart(2, "0");
+  document.querySelector("#timer").classList.toggle("urgent", s.time < 15);
+  const overlay = document.querySelector("#battle-overlay");
+  if (!paused && s.phase !== "finished") {
+    overlay.innerHTML =
+      s.phase === "countdown"
+        ? `<div class="countdown"><span>准备好了吗？</span><b>${s.countdown > 0.7 ? Math.ceil(s.countdown) : "开战！"}</b><small>${esc(getChars()[0].name)} <i>VS</i> ${esc(getChars()[1].name)}</small></div>`
+        : "";
+  }
+  if (s.phase === "finished" && !finishedHandled) {
+    finishedHandled = true;
+    input.enabled = false;
+    input.clear();
+    showResults();
+  }
+}
+function showResults() {
+  const winner = game.state.winner,
+    draw = winner === "draw" || winner === null;
+  const c = draw ? null : getChars()[winner];
+  document.querySelector("#battle-overlay").innerHTML =
+    `<div class="result-card"><div class="eyebrow">${draw ? "A MATCH TO REMEMBER" : "THAT WAS A GOOD FIGHT"}</div><h2>${draw ? "势均力敌！" : `P${winner + 1} 获胜！`}</h2>${c ? `<div class="result-portrait">${createPortrait(c)}</div><h3>${esc(c.name)}</h3>` : '<div class="draw-symbol">VS</div>'}<p>${draw ? "这次不分高下，再来一场？" : "漂亮的一战，和朋友再切磋一回吧。"}</p><div class="result-summary">${getChars()
+      .map(
+        (c, p) =>
+          `<span><b class="p${p + 1}">P${p + 1}</b> ${esc(c.name)} <small>${Math.ceil(game.state.fighters[p].hp)} HP</small></span>`,
+      )
+      .join(
+        "<i>·</i>",
+      )}</div><button class="button primary full" data-action="rematch">再战一次 <span>↻</span></button><div class="result-links"><button data-action="reselect">重新选人</button><button data-action="home">返回主页</button></div></div>`;
+}
+function togglePause(force) {
+  if (page !== "fight" || game?.state.phase === "finished" || helpOpen) return;
+  paused = typeof force === "boolean" ? force : !paused;
+  game.paused = paused;
+  input.clear();
+  input.enabled = !paused;
+  const overlay = document.querySelector("#battle-overlay");
+  if (paused) {
+    overlay.innerHTML = `<div class="pause-card"><div class="eyebrow">TAKE A LITTLE BREATHER</div><h2>稍作休息<span>。</span></h2><p>对战已暂停，准备好后继续。</p><button class="button primary full" data-action="pause">继续对战 <span>▶</span></button><button class="button ghost full" data-action="rematch">重新开始本局 ↻</button><div class="result-links"><button data-action="reselect">重新选人</button><button data-action="home">返回主页</button></div></div>`;
+  } else {
+    overlay.innerHTML = "";
+    updateHud();
+  }
+}
+function showHelp() {
+  if (helpOpen) return;
+  helpOpen = true;
+  const resume = page === "fight" && !paused && game.state.phase !== "finished";
+  if (resume) {
+    game.paused = true;
+    input.enabled = false;
+    input.clear();
+  }
+  const el = document.createElement("div");
+  el.className = "modal-root";
+  el.innerHTML = `<section class="help-modal" role="dialog" aria-modal="true" aria-labelledby="help-title"><button class="modal-close" data-action="close-help" aria-label="关闭操作说明">×</button><div class="eyebrow">A QUICK FIELD GUIDE</div><h2 id="help-title">快乐开打指南<span>。</span></h2><p>同一台电脑，两位玩家。先选角色与场地，倒数结束即可出招。</p><div class="help-players">${[
+    0, 1,
+  ]
+    .map(
+      (p) =>
+        `<div><h3 class="p${p + 1}">PLAYER 0${p + 1}</h3>${[
+          ["左右移动", p ? "← →" : "A D"],
+          ["跳跃 / 蹲下", p ? "↑ ↓" : "W S"],
+          ["普通攻击", p ? "J" : "F"],
+          ["角色技能", p ? "K" : "G"],
+          ["专属大招", p ? "L" : "H"],
+        ]
+          .map(([n, k]) => `<div><span>${n}</span><kbd>${k}</kbd></div>`)
+          .join("")}</div>`,
+    )
+    .join(
+      "",
+    )}</div><div class="help-rules"><p><b>打出你的节奏</b>普攻近距离生效；技能与大招具有不同范围。每次按下触发一次招式，观察下方冷却与能量提示。</p><p><b>99 秒，一局定胜负</b>生命归零即结束；时间耗尽比较剩余生命比例，同时归零或生命比例相同为平局。木箱可破坏，招牌会响应攻击。</p><p><b>暂停与声音</b>按 Esc 暂停。切换窗口会自动暂停。右上角音符可开关合成音效。</p></div><button class="button primary full" data-action="close-help">明白了，出发！ <span>→</span></button></section>`;
+  el.dataset.resume = String(resume);
+  document.body.append(el);
+  el.querySelector(".modal-close").focus();
+}
+function closeHelp() {
+  const el = document.querySelector(".modal-root");
+  if (!el) return;
+  const resume = el.dataset.resume === "true";
+  el.remove();
+  helpOpen = false;
+  if (resume && game) {
+    game.paused = false;
+    input.enabled = true;
+  }
+  document.querySelector('[data-action="help"]')?.focus();
+}
+app.addEventListener("click", handleClick);
+document.body.addEventListener("click", (e) => {
+  if (e.target.closest(".modal-root")) handleClick(e);
+});
+function handleClick(e) {
+  const button = e.target.closest("[data-action]");
+  if (!button || button.disabled) return;
+  audio.unlock();
+  const a = button.dataset.action,
+    p = Number(button.dataset.player),
+    i = Number(button.dataset.index);
+  switch (a) {
+    case "home":
+      showHome();
+      break;
+    case "start":
+      showCharacters(true);
+      break;
+    case "help":
+      showHelp();
+      break;
+    case "close-help":
+      closeHelp();
+      break;
+    case "sound":
+      audio.toggle();
+      document.querySelectorAll(".sound").forEach((x) => {
+        x.textContent = audio.enabled ? "♫" : "♩";
+        x.setAttribute("aria-pressed", audio.enabled);
+        x.setAttribute("aria-label", `${audio.enabled ? "关闭" : "开启"}音效`);
+      });
+      break;
+    case "choose-character":
+      selected[p] = i;
+      ready[p] = false;
+      showCharacters();
+      break;
+    case "ready":
+      ready[p] = !ready[p];
+      showCharacters();
+      break;
+    case "to-maps":
+      if (ready.every(Boolean)) showMaps();
+      break;
+    case "choose-map":
+      selectedMap = i;
+      showMaps();
+      break;
+    case "random":
+      selectedMap =
+        (selectedMap + 1 + Math.floor(Math.random() * (maps.length - 1))) %
+        maps.length;
+      showMaps();
+      break;
+    case "back-characters":
+      showCharacters();
+      break;
+    case "fight":
+    case "rematch":
+      startFight();
+      break;
+    case "reselect":
+      showCharacters(true);
+      break;
+    case "pause":
+      togglePause();
+      break;
+    case "fullscreen": {
+      const shell = document.querySelector(".battle-main");
+      if (document.fullscreenElement) document.exitFullscreen?.();
+      else
+        shell?.requestFullscreen?.().catch(() => {
+          document.querySelector("#feedback").textContent =
+            "当前浏览器不支持全屏，可使用浏览器全屏模式。";
+        });
+      break;
+    }
+  }
+}
+app.addEventListener("pointerdown", (e) => {
+  const b = e.target.closest("[data-touch]");
+  if (!b || !input.enabled) return;
+  e.preventDefault();
+  b.setPointerCapture(e.pointerId);
+  input.touch.add(b.dataset.touch);
+  input.pendingTouch.add(b.dataset.touch);
+  b.classList.add("pressed");
+});
+for (const event of ["pointerup", "pointercancel", "lostpointercapture"])
+  app.addEventListener(event, (e) => {
+    const b = e.target.closest("[data-touch]");
+    if (b) {
+      input.touch.delete(b.dataset.touch);
+      b.classList.remove("pressed");
+    }
+  });
+window.addEventListener("blur", () => {
+  input.clear();
+  if (page === "fight" && !paused && !helpOpen) togglePause(true);
+});
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) {
+    input.clear();
+    if (page === "fight" && !paused && !helpOpen) togglePause(true);
+  }
+});
+document.addEventListener("keydown", (e) => {
+  if (helpOpen && e.code === "Escape") {
+    e.preventDefault();
+    e.stopPropagation();
+    closeHelp();
+  }
+  if (helpOpen && e.code === "Tab") {
+    const nodes = [...document.querySelectorAll(".modal-root button")],
+      first = nodes[0],
+      last = nodes.at(-1);
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  }
+});
+function frame(now) {
+  const dt = Math.min((now - last) / 1000, 0.05);
+  last = now;
+  try {
+    if (page === "fight" && game) {
+      game.step(dt, input.read());
+      arena?.update(game.state, dt);
+      hudTick += dt;
+      if (hudTick > 0.075) {
+        hudTick = 0;
+        updateHud();
+      }
+    } else if (preview && arena) {
+      arena.update(preview.state, dt);
+    }
+  } catch (error) {
+    console.error(error);
+    if (page === "fight") {
+      input.enabled = false;
+      document.querySelector("#feedback").textContent =
+        "运行出现问题，请重新开始本局。";
+    }
+  }
+  requestAnimationFrame(frame);
+}
+if (import.meta.env.DEV)
+  window.__POCKET__ = {
+    get game() {
+      return game;
+    },
+    get page() {
+      return page;
+    },
+    get arena() {
+      return arena;
+    },
+  };
+showHome();
+requestAnimationFrame(frame);

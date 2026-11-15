@@ -1,0 +1,260 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { Game } from "../src/game/engine.js";
+import { characters, maps } from "../src/config/content.js";
+const create = (options = {}) =>
+  new Game({ characters, map: maps[0], ...options });
+function advance(game, seconds, inputs = [{}, {}]) {
+  for (let elapsed = 0; elapsed < seconds - 1e-7; elapsed += 1 / 60)
+    game.step(Math.min(1 / 60, seconds - elapsed), inputs);
+}
+function ready(game) {
+  advance(game, 3.1);
+  assert.equal(game.state.phase, "fighting");
+}
+function close(game, distance = 1.7) {
+  game.state.fighters[0].x = -distance / 2;
+  game.state.fighters[1].x = distance / 2;
+}
+
+test("configuration exposes two distinct kits and three complete maps", () => {
+  assert.equal(characters.length, 2);
+  assert.notEqual(
+    characters[0].moves.skill.kind,
+    characters[1].moves.skill.kind,
+  );
+  assert.notEqual(
+    characters[0].moves.ultimate.kind,
+    characters[1].moves.ultimate.kind,
+  );
+  for (const map of maps) {
+    assert.ok(
+      map.bounds.left < map.spawns[0].x && map.bounds.right > map.spawns[1].x,
+    );
+    assert.ok(map.camera.minWidth > 20);
+    assert.ok(map.objects.some((o) => o.type === "crate"));
+    assert.ok(map.objects.some((o) => o.type === "sign"));
+  }
+});
+test("countdown gates combat; held input does not trigger when countdown finishes", () => {
+  const game = create();
+  close(game);
+  advance(game, 3.5, [{ attack: true }, {}]);
+  assert.equal(game.state.fighters[1].hp, 100);
+  advance(game, 0.05);
+  advance(game, 0.3, [{ attack: true }, {}]);
+  assert.equal(game.state.fighters[1].hp, 92);
+});
+test("attacks miss outside range and only hit once per cast while held", () => {
+  const game = create();
+  ready(game);
+  advance(game, 0.7, [{ attack: true }, {}]);
+  assert.equal(game.state.fighters[1].hp, 100);
+  advance(game, 0.05);
+  close(game);
+  advance(game, 2, [{ attack: true }, {}]);
+  assert.equal(game.state.fighters[1].hp, 92);
+});
+test("simultaneous attacks can trade and never repeatedly damage within an active window", () => {
+  const equal = [characters[0], characters[0]];
+  const game = create({ characters: equal });
+  ready(game);
+  close(game);
+  advance(game, 0.4, [{ attack: true }, { attack: true }]);
+  assert.deepEqual(
+    game.state.fighters.map((f) => f.hp),
+    [92, 92],
+  );
+  advance(game, 2);
+  assert.equal(game.state.fighters[0].stun, 0);
+  assert.equal(game.state.fighters[0].currentMove, null);
+});
+test("movement respects both arena bounds and jump returns to the ground", () => {
+  const game = create();
+  ready(game);
+  advance(game, 12, [{ left: true }, { right: true }]);
+  assert.equal(game.state.fighters[0].x, maps[0].bounds.left + 0.6);
+  assert.equal(game.state.fighters[1].x, maps[0].bounds.right - 0.6);
+  game.step(1 / 60, [{ jump: true }, {}]);
+  assert.ok(game.state.fighters[0].y > 0);
+  advance(game, 2);
+  assert.equal(game.state.fighters[0].y, 0);
+  assert.equal(game.state.fighters[0].grounded, true);
+});
+test("air cannon hits at distance and ducking avoids its high hitbox", () => {
+  const game = create();
+  ready(game);
+  advance(game, 1, [{ skill: true }, {}]);
+  assert.equal(game.state.fighters[1].hp, 85);
+  game.reset();
+  ready(game);
+  advance(game, 1, [{ skill: true }, { crouch: true }]);
+  assert.equal(game.state.fighters[1].hp, 100);
+  assert.equal(game.state.fighters[1].crouching, true);
+});
+test("skill requires energy and cooldown, while energy regenerates", () => {
+  const game = create();
+  ready(game);
+  const f = game.state.fighters[0];
+  f.energy = 0;
+  advance(game, 0.1, [{ ultimate: true }, {}]);
+  assert.equal(f.currentMove, null);
+  f.energy = 100;
+  advance(game, 0.05);
+  game.step(1 / 60, [{ skill: true }, {}]);
+  assert.ok(f.energy < 80);
+  assert.ok(f.cooldowns.skill > 2.5);
+  advance(game, 1);
+  const energy = f.energy;
+  game.step(1 / 60, [{ skill: true }, {}]);
+  assert.equal(f.currentMove, null);
+  assert.ok(f.energy > energy);
+});
+test("Po dash advances toward and damages its opponent", () => {
+  const game = create();
+  ready(game);
+  game.state.fighters[0].x = -1;
+  game.state.fighters[1].x = 4;
+  advance(game, 0.9, [{}, { skill: true }]);
+  assert.equal(game.state.fighters[0].hp, 82);
+  assert.ok(game.state.fighters[1].x < 4);
+});
+test("ultimates have preparation and distinct directional / radial hit coverage", () => {
+  const game = create();
+  ready(game);
+  close(game, 5);
+  advance(game, 0.5, [{ ultimate: true }, {}]);
+  assert.equal(game.state.fighters[1].hp, 100);
+  advance(game, 0.5);
+  assert.equal(game.state.fighters[1].hp, 66);
+  game.reset();
+  ready(game);
+  close(game, 5);
+  advance(game, 1.1, [{}, { ultimate: true }]);
+  assert.equal(game.state.fighters[0].hp, 62);
+});
+test("crate breaks after configured damage; sign shakes and recovers without destruction", () => {
+  const game = create();
+  ready(game);
+  const f = game.state.fighters[0];
+  const other = game.state.fighters[1];
+  const crate = game.state.objects[0];
+  f.x = crate.x - 1.5;
+  other.x = 12;
+  for (let i = 0; i < 3; i++) {
+    advance(game, 0.3, [{ attack: true }, {}]);
+    advance(game, 0.3);
+  }
+  assert.equal(crate.hp, 0);
+  assert.equal(crate.destroyed, true);
+  assert.ok(game.state.effects.some((e) => e.type === "break"));
+  const sign = game.state.objects.find((o) => o.type === "sign");
+  f.x = sign.x - 1.5;
+  advance(game, 0.2, [{ attack: true }, {}]);
+  assert.ok(sign.shake > 0);
+  assert.equal(sign.destroyed, false);
+  advance(game, 1);
+  assert.equal(sign.shake, 0);
+});
+test("pause freezes physics and timers; reset restores full match and objects", () => {
+  const game = create();
+  ready(game);
+  const { x } = game.state.fighters[0];
+  const time = game.state.time;
+  game.paused = true;
+  advance(game, 1, [{ right: true, attack: true }, {}]);
+  assert.equal(game.state.fighters[0].x, x);
+  assert.equal(game.state.time, time);
+  game.reset();
+  assert.equal(game.state.phase, "countdown");
+  assert.ok(game.state.objects.every((o) => !o.destroyed));
+  assert.ok(game.state.fighters.every((f) => f.hp === 100 && f.energy === 100));
+});
+test("KO ends combat, suppresses input, and correctly detects double KO", () => {
+  const game = create({ characters: [characters[0], characters[0]] });
+  ready(game);
+  close(game);
+  game.state.fighters.forEach((f) => {
+    f.hp = 8;
+  });
+  advance(game, 0.3, [{ attack: true }, { attack: true }]);
+  assert.equal(game.state.phase, "finished");
+  assert.equal(game.state.winner, "draw");
+  const positions = game.state.fighters.map((f) => f.x);
+  advance(game, 1, [
+    { right: true, ultimate: true },
+    { left: true, skill: true },
+  ]);
+  assert.deepEqual(
+    game.state.fighters.map((f) => f.x),
+    positions,
+  );
+  assert.equal(game.state.projectiles.length, 0);
+});
+test("timer decides winner by health and handles equal-health draws", () => {
+  const game = create();
+  ready(game);
+  game.state.time = 0.05;
+  game.state.fighters[0].hp = 50;
+  advance(game, 0.1);
+  assert.equal(game.state.winner, 1);
+  game.reset();
+  ready(game);
+  game.state.time = 0.01;
+  advance(game, 0.1);
+  assert.equal(game.state.winner, "draw");
+});
+
+test("holding jump does not auto-repeat or permit a double jump", () => {
+  const game = create();
+  ready(game);
+  advance(game, 2.4, [{ jump: true }, {}]);
+  assert.equal(game.state.fighters[0].y, 0);
+  assert.equal(game.state.fighters[0].grounded, true);
+  advance(game, 0.05);
+  game.step(1 / 60, [{ jump: true }, {}]);
+  assert.ok(game.state.fighters[0].y > 0);
+  advance(game, 0.1);
+  const vy = game.state.fighters[0].vy;
+  game.step(1 / 60, [{ jump: true }, {}]);
+  assert.ok(game.state.fighters[0].vy < vy);
+});
+test("beam direction is committed during windup and hits configured objects exactly once", () => {
+  const game = create();
+  ready(game);
+  const [f, target] = game.state.fighters;
+  f.x = -12;
+  target.x = -7;
+  game.step(1 / 60, [{ ultimate: true }, {}]);
+  target.x = -15; // Cross behind a committed beam during preparation.
+  advance(game, 1.1);
+  assert.equal(target.hp, 100);
+  assert.equal(game.state.objects[0].destroyed, true);
+  const sign = game.state.objects.find((object) => object.type === "sign");
+  assert.ok(sign.shake > 0);
+  assert.equal(sign.destroyed, false);
+});
+test("timeout compares remaining health proportions for future unequal max-health characters", () => {
+  const tank = { ...characters[1], maxHp: 200 };
+  const game = create({ characters: [characters[0], tank] });
+  ready(game);
+  game.state.fighters[0].hp = 75;
+  game.state.fighters[1].hp = 100;
+  game.state.time = 0.01;
+  advance(game, 0.1);
+  assert.equal(game.state.winner, 0);
+});
+
+test("KO presentation lands airborne fighters and lets hit flashes fade", () => {
+  const game = create();
+  ready(game);
+  game.state.fighters[0].y = 2;
+  game.state.fighters[0].grounded = false;
+  game.state.fighters[0].flash = 0.16;
+  game.state.fighters[1].hp = 0;
+  game.step(1 / 60);
+  assert.equal(game.state.fighters[0].grounded, true);
+  assert.equal(game.state.fighters[0].action, "victory");
+  advance(game, 0.3);
+  assert.equal(game.state.fighters[0].flash, 0);
+});
