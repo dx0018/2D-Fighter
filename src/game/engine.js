@@ -1,4 +1,6 @@
 /** Deterministic combat core. No DOM, timers or renderer dependency. */
+import { moveContext, selectMove } from "./moves.js";
+import { segmentHitsBox, fighterHeight } from "./collision.js";
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const EPS = 1e-7;
 const KEYS = ["jump", "attack", "skill", "ultimate"];
@@ -27,6 +29,7 @@ export class Game {
         hp: character.maxHp,
         energy: character.maxEnergy,
         cooldowns: { attack: 0, skill: 0, ultimate: 0 },
+        cooldownTotals: { attack: 1, skill: 1, ultimate: 1 },
         action: "idle",
         actionTime: 0,
         stun: 0,
@@ -42,6 +45,13 @@ export class Game {
         comboDamage: 0,
         comboWindow: 0,
         hitDirection: 0,
+        inputContext: "neutral",
+        moveDirection: 0,
+        walkDistance: 0,
+        jumpStartup: 0,
+        landingTimer: 0,
+        landingImpact: 0,
+        hitLevel: "mid",
       })),
       objects: this.map.objects.map((object) => ({
         ...object,
@@ -99,7 +109,15 @@ export class Game {
   }
   tick(dt, inputs, pressed) {
     const s = this.state;
-    for (const effect of s.effects) effect.life -= dt;
+    for (const effect of s.effects) {
+      if (effect.type === "cast") {
+        const cast = s.fighters[effect.owner]?.currentMove;
+        effect.life =
+          cast?.id === effect.castId
+            ? Math.max(0, cast.move.windup - cast.elapsed)
+            : 0;
+      } else effect.life -= dt;
+    }
     s.effects = s.effects.filter((effect) => effect.life > 0);
     s.shake = Math.max(0, s.shake - dt * 2.5);
     s.impactPulse = Math.max(0, s.impactPulse - dt * 5);
@@ -130,13 +148,29 @@ export class Game {
     }
     // Preserve brief button taps through impact freeze and the end of recovery.
     s.fighters.forEach((f, id) => {
+      const other = s.fighters[1 - id];
+      f.moveDirection = Number(!!inputs[id].right) - Number(!!inputs[id].left);
+      f.inputContext = moveContext(
+        f,
+        inputs[id],
+        other,
+        (pressed[id].jump || f.jumpBuffer > 0) &&
+          f.grounded &&
+          !inputs[id].crouch,
+      );
       const key = ["ultimate", "skill", "attack"].find(
         (key) =>
           pressed[id][key] &&
-          f.energy >= f.character.moves[key].cost &&
+          f.energy >= selectMove(f.character, key, f.inputContext).cost &&
           f.cooldowns[key] <= 0.12,
       );
-      if (key) f.bufferedMove = { key, remaining: 0.12 };
+      if (key)
+        f.bufferedMove = {
+          key,
+          context: key === "ultimate" ? "neutral" : f.inputContext,
+          facing: Math.sign(other.x - f.x) || f.facing,
+          remaining: 0.12,
+        };
       if (pressed[id].jump) f.jumpBuffer = 0.12;
     });
     if (s.hitstop > EPS) {
@@ -160,6 +194,7 @@ export class Game {
       f.flash = Math.max(0, f.flash - dt);
       f.invulnerable = Math.max(0, f.invulnerable - dt);
       f.stun = Math.max(0, f.stun - dt);
+      f.landingTimer = Math.max(0, f.landingTimer - dt);
       f.energy = Math.min(f.character.maxEnergy, f.energy + dt * 5);
       for (const key of ["attack", "skill", "ultimate"])
         f.cooldowns[key] = Math.max(0, f.cooldowns[key] - dt);
@@ -169,20 +204,35 @@ export class Game {
       if (!f.currentMove && f.stun <= EPS) {
         f.crouching = !!inputs[id].crouch && f.grounded;
         if (f.jumpBuffer > 0 && f.grounded && !f.crouching) {
-          f.vy = f.character.jump;
           f.jumpBuffer = 0;
-          f.grounded = false;
-          this.effect("dust", f.x, 0.15, "#e5d8c4", 0.3);
+          if (!f.jumpStartup) f.jumpStartup = 0.075;
+        }
+        if (f.jumpStartup > 0) {
+          f.jumpStartup = Math.max(0, f.jumpStartup - dt);
+          this.setAction(f, "takeoff");
+          if (f.jumpStartup <= EPS) {
+            f.jumpStartup = 0;
+            f.vy = f.character.jump;
+            f.grounded = false;
+            f.crouching = false;
+            f.landingTimer = 0;
+            this.effect("dust", f.x, 0.15, "#e5d8c4", 0.3);
+          }
         }
         let chosen = ["ultimate", "skill", "attack"].find(
           (key) =>
             f.bufferedMove?.key === key &&
+            !f.jumpStartup &&
+            (key === "ultimate" ||
+              (f.bufferedMove.context === "air") === !f.grounded) &&
             f.cooldowns[key] <= EPS &&
-            f.energy >= f.character.moves[key].cost,
+            f.energy >=
+              selectMove(f.character, key, f.bufferedMove.context).cost,
         );
         if (chosen) {
+          const buffered = f.bufferedMove;
           f.bufferedMove = null;
-          this.beginMove(f, chosen);
+          this.beginMove(f, chosen, buffered.context, buffered.facing);
         }
       }
       if (f.currentMove) {
@@ -202,6 +252,12 @@ export class Game {
           cast.elapsed < move.windup + move.active
         )
           f.vx = cast.facing * move.dashSpeed;
+        if (
+          move.movement &&
+          cast.elapsed >= move.windup &&
+          cast.elapsed < move.windup + move.active
+        )
+          f.vx = cast.facing * move.movement;
         // Cast exactly once; active melee may acquire a target throughout its window.
         if (!cast.released && cast.elapsed >= move.windup) {
           cast.released = true;
@@ -220,33 +276,48 @@ export class Game {
       } else if (f.stun > EPS) {
         f.vx *= Math.exp(-5 * dt);
         this.setAction(f, "hurt");
-      } else {
+      } else if (!f.jumpStartup) {
         const direction =
           Number(!!inputs[id].right) - Number(!!inputs[id].left);
-        f.vx = f.crouching ? 0 : direction * f.character.speed;
+        const targetSpeed = f.crouching ? 0 : direction * f.character.speed;
+        f.vx = f.crouching
+          ? 0
+          : f.vx +
+            (targetSpeed - f.vx) * (1 - Math.exp(-dt * (f.grounded ? 18 : 10)));
+        if (Math.abs(f.vx) < 0.015) f.vx = 0;
         this.setAction(
           f,
           !f.grounded
             ? "jump"
             : f.crouching
               ? "crouch"
-              : direction
+              : Math.abs(f.vx) > 0.12
                 ? "walk"
                 : "idle",
         );
       }
+      const oldX = f.x;
       f.x = clamp(
         f.x + f.vx * dt,
         this.map.bounds.left + 0.6,
         this.map.bounds.right - 0.6,
       );
+      if (f.grounded && f.action === "walk")
+        f.walkDistance += Math.abs(f.x - oldX);
       if (!f.grounded) {
-        f.vy -= 25 * dt;
+        f.vy -= 25 * (f.currentMove?.move.gravityScale ?? 1) * dt;
         f.y += f.vy * dt;
         if (f.y <= 0) {
+          f.landingImpact = Math.min(1, Math.abs(f.vy) / 12);
+          f.landingTimer = 0.16;
           f.y = 0;
           f.vy = 0;
           f.grounded = true;
+          if (f.currentMove?.context === "air") {
+            f.currentMove.cancelled = true;
+            f.currentMove = null;
+            f.moveProgress = 0;
+          }
           this.effect("dust", f.x, 0.1, "#e5d8c4", 0.3);
         }
       }
@@ -266,17 +337,21 @@ export class Game {
       f.actionTime = 0;
     }
   }
-  beginMove(f, key) {
-    const move = f.character.moves[key];
+  beginMove(f, key, context = "neutral", facing = f.facing) {
+    const move = selectMove(f.character, key, context);
     f.energy -= move.cost;
     f.cooldowns[key] = move.cooldown;
-    f.crouching = false;
+    f.cooldownTotals[key] = move.cooldown;
+    f.crouching = move.posture === "crouch" && f.grounded;
+    f.jumpStartup = 0;
+    f.facing = facing;
     f.currentMove = {
       id: this.nextId++,
       key,
       move,
+      context: move.context,
       elapsed: 0,
-      facing: f.facing,
+      facing,
       released: false,
       hit: new Set(),
     };
@@ -288,19 +363,37 @@ export class Game {
       kind: move.kind,
       color: move.color,
       name: move.name,
+      duration: move.windup,
+      ultimate: key === "ultimate",
+      context: move.context,
     });
-    this.effect(
-      "cast",
-      f.x,
-      f.y + 1.4,
-      move.color,
-      key === "ultimate" ? move.windup : 0.18,
-      { owner: f.id, kind: move.kind, castId: f.currentMove.id },
-    );
+    const chargeHeight =
+      move.kind === "beam"
+        ? (move.height ?? 1.3)
+        : move.kind === "projectile"
+          ? (move.height ?? 1.7)
+          : f.crouching
+            ? 0.55
+            : (move.hitY ?? 1.4);
+    this.effect("cast", f.x, f.y + chargeHeight, move.color, move.windup, {
+      owner: f.id,
+      kind: move.kind,
+      castId: f.currentMove.id,
+      height: chargeHeight,
+      originX: move.kind === "beam" ? (move.originX ?? 0.8) : undefined,
+      ultimate: key === "ultimate",
+    });
   }
   release(f, cast) {
     const move = cast.move;
-    this.event("release", { player: f.id, kind: move.kind, move: cast.key });
+    this.event("release", {
+      player: f.id,
+      kind: move.kind,
+      move: cast.key,
+      ultimate: cast.key === "ultimate",
+      context: cast.context,
+    });
+    if (move.evade) f.invulnerable = Math.max(f.invulnerable, move.evade);
     if (move.kind === "projectile") {
       this.state.projectiles.push({
         id: this.nextId++,
@@ -311,43 +404,77 @@ export class Game {
         color: move.color,
         radius: move.radius,
         speed: move.projectileSpeed,
+        vx: cast.facing * move.projectileSpeed * Math.cos(move.angle || 0),
+        vy: move.projectileSpeed * Math.sin(move.angle || 0),
+        angle: move.angle || 0,
         distance: 0,
         move,
         hit: new Set(),
         alive: true,
       });
     } else if (move.kind === "beam") {
-      this.effect(
-        "beam",
-        f.x + cast.facing * 0.8,
-        f.y + 1.3,
-        move.color,
-        0.56,
-        { direction: cast.facing, range: move.range, owner: f.id },
-      );
+      cast.ray = {
+        x: f.x + cast.facing * (move.originX ?? 0.8),
+        y: f.y + (move.height ?? 1.3),
+        dx: cast.facing * Math.cos(move.angle || 0) * move.range,
+        dy: Math.sin(move.angle || 0) * move.range,
+      };
+      this.effect("beam", cast.ray.x, cast.ray.y, move.color, 0.56, {
+        direction: cast.facing,
+        range: move.range,
+        owner: f.id,
+        angle: move.angle || 0,
+        radius: move.beamRadius ?? 0.7,
+        ultimate: cast.key === "ultimate",
+      });
       this.state.shake = Math.max(this.state.shake, 0.25);
     } else if (move.kind === "pulse") {
-      this.effect("pulse", f.x, f.y + 0.6, move.color, 0.82, {
-        radius: move.range,
-        owner: f.id,
-      });
+      this.effect(
+        "pulse",
+        f.x,
+        f.y + (move.hitY ?? 0.6),
+        move.color,
+        cast.key === "ultimate" ? 0.82 : 0.48,
+        {
+          radius: move.range,
+          owner: f.id,
+        },
+      );
       this.state.shake = Math.max(this.state.shake, 0.35);
     } else
       this.effect(
         move.kind === "dash" ? "dash" : "slash",
         f.x + cast.facing * 1.2,
-        f.y + 1.2,
+        f.y + (move.hitY ?? 1.2),
         move.color,
         0.32,
         { direction: cast.facing, owner: f.id },
       );
   }
   collectStrike(f, cast, contacts) {
+    if (cast.cancelled) return;
     const move = cast.move;
     const radial = move.kind === "pulse";
-    const centerY = f.y + (move.kind === "beam" ? 1.3 : 1.15);
-    const height = radial ? 4.8 : move.kind === "beam" ? 2.2 : 1.55;
+    const centerY = f.y + (move.hitY ?? 1.15);
+    const height = move.hitHeight ?? (radial ? 4.8 : 1.55);
     const overlaps = (x, width, y, h) => {
+      if (move.kind === "beam") {
+        const r = cast.ray;
+        return (
+          r &&
+          segmentHitsBox(
+            r.x,
+            r.y,
+            r.x + r.dx,
+            r.y + r.dy,
+            move.beamRadius ?? 0.7,
+            x,
+            width,
+            y,
+            h,
+          )
+        );
+      }
       const dx = x - f.x;
       const horizontal = radial
         ? Math.abs(dx) <= move.range + width / 2
@@ -359,7 +486,7 @@ export class Game {
     if (
       !cast.hit.has(`f${target.id}`) &&
       target.invulnerable <= EPS &&
-      overlaps(target.x, 1, target.y, target.crouching ? 1.45 : 2.6)
+      overlaps(target.x, 1, target.y, fighterHeight(target))
     ) {
       cast.hit.add(`f${target.id}`);
       contacts.push({
@@ -381,18 +508,17 @@ export class Game {
   }
   updateProjectiles(dt, contacts) {
     for (const p of this.state.projectiles) {
-      const oldX = p.x;
-      p.x += p.direction * p.speed * dt;
+      const oldX = p.x,
+        oldY = p.y;
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
       p.distance += p.speed * dt;
       const overlaps = (x, width, y, height) =>
-        x + width / 2 >= Math.min(oldX, p.x) - p.radius &&
-        x - width / 2 <= Math.max(oldX, p.x) + p.radius &&
-        p.y + p.radius >= y &&
-        p.y - p.radius <= y + height;
+        segmentHitsBox(oldX, oldY, p.x, p.y, p.radius, x, width, y, height);
       const target = this.state.fighters[1 - p.owner];
       if (
         target.invulnerable <= EPS &&
-        overlaps(target.x, 1, target.y, target.crouching ? 1.45 : 2.6)
+        overlaps(target.x, 1, target.y, fighterHeight(target))
       ) {
         contacts.push({
           attacker: this.state.fighters[p.owner],
@@ -420,7 +546,8 @@ export class Game {
       if (
         p.distance > p.move.range ||
         p.x < this.map.bounds.left - 2 ||
-        p.x > this.map.bounds.right + 2
+        p.x > this.map.bounds.right + 2 ||
+        p.y < p.radius * 0.5
       )
         p.alive = false;
     }
@@ -464,6 +591,7 @@ export class Game {
     attacker.comboDamage += move.damage;
     attacker.comboWindow = 1.35;
     target.hitDirection = direction;
+    target.hitLevel = (move.hitY ?? 1.35) < 0.9 ? "low" : "mid";
     this.state.hitstop = Math.max(
       this.state.hitstop,
       move.impact?.stop ?? 0.055,
@@ -476,6 +604,7 @@ export class Game {
     target.currentMove = null;
     target.moveProgress = 0;
     target.crouching = false;
+    target.jumpStartup = 0;
     this.setAction(target, "hurt");
     this.state.shake = Math.max(
       this.state.shake,
@@ -484,7 +613,7 @@ export class Game {
     this.effect(
       "hit",
       target.x - direction * 0.35,
-      target.y + 1.35,
+      target.y + Math.min(fighterHeight(target) - 0.2, move.hitY ?? 1.35),
       move.color,
       0.32,
       { damage: move.damage, heavy: move.damage >= 30, direction },
@@ -533,6 +662,8 @@ export class Game {
       f.currentMove = null;
       f.bufferedMove = null;
       f.jumpBuffer = 0;
+      f.jumpStartup = 0;
+      f.landingTimer = 0;
       f.vx = 0;
       f.vy = 0;
       f.y = 0;

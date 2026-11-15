@@ -92,21 +92,33 @@ function limb(g, mat, handMat, side, shoulder, plush) {
 function legs(model, mat, shoeMat, plush) {
   for (const side of [-1, 1]) {
     const group = new THREE.Group();
-    group.position.set(side * 0.37, 0.57, 0);
-    model.body.add(group);
-    const leg = ball(
+    model.root.add(group);
+    const upper = mesh(
       group,
+      new THREE.CapsuleGeometry(plush ? 0.21 : 0.22, 0.24, 4, 12),
       mat,
-      [0, -0.12, 0],
-      [plush ? 0.26 : 0.25, 0.33, 0.28],
     );
+    const lower = mesh(
+      group,
+      new THREE.CapsuleGeometry(plush ? 0.18 : 0.19, 0.22, 4, 12),
+      mat,
+    );
+    const knee = ball(group, mat, [0, 0, 0], [0.205, 0.205, 0.205]);
     const foot = ball(
       group,
       shoeMat,
-      [side * 0.035, -0.38, 0.17],
+      [side * 0.37, 0.205, 0.17],
       plush ? [0.33, 0.21, 0.47] : [0.4, 0.2, 0.49],
     );
-    model.legs.push({ group, leg, foot, side });
+    model.legs.push({
+      group,
+      upper,
+      lower,
+      knee,
+      foot,
+      side,
+      footHeight: plush ? 0.21 : 0.2,
+    });
   }
 }
 function eye(model, side, { x = 0.22, y = 0.26, z = 0.7, white = true } = {}) {

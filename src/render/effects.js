@@ -204,11 +204,13 @@ export class CombatEffects {
         const f = state.fighters[e.owner];
         if (f)
           d.group.position.set(
-            f.x + (e.kind === "pulse" ? 0 : f.facing * 0.9),
-            f.y + (e.kind === "pulse" ? 1.0 : 1.7),
+            f.x + f.facing * (e.originX ?? (e.kind === "pulse" ? 0 : 0.9)),
+            f.y +
+              (e.height ??
+                (f.crouching ? 0.55 : e.kind === "pulse" ? 1.0 : 1.7)),
             0.25,
           );
-        const big = ["pulse", "beam"].includes(e.kind);
+        const big = e.ultimate;
         d.halo.scale.setScalar((big ? 3.2 : 1.5) * (0.4 + a));
         d.halo.material.opacity = 0.25 + a * 0.4;
         d.rings.forEach((r, i) => {
@@ -235,7 +237,11 @@ export class CombatEffects {
       } else if (e.type === "beam") {
         const span = e.range || 14,
           sign = e.direction || 1,
-          width = Math.sin(Math.PI * Math.min(a * 1.4, 1)) * 0.7 + 0.12;
+          width =
+            (e.radius ?? 0.7) *
+            (Math.sin(Math.PI * Math.min(a * 1.4, 1)) * 0.85 + 0.18);
+        d.group.rotation.z = (e.angle || 0) * sign;
+        d.halo.scale.setScalar(e.ultimate ? 4 : 1.65);
         d.parts.forEach((p, i) => {
           p.position.x = (sign * span) / 2;
           p.scale.set(
@@ -368,11 +374,14 @@ export class CombatEffects {
       d.group.visible = !!p;
       if (!p) return;
       d.group.position.set(p.x, p.y, 0);
-      d.group.rotation.y = p.direction < 0 ? Math.PI : 0;
+      d.group.rotation.set(0, 0, Math.atan2(p.vy || 0, p.vx ?? p.direction));
+      d.shell.material.color.set(p.color);
+      d.glow.material.color.set(p.color);
       const r = p.radius;
       d.core.scale.set(r * 1.5, r * 0.6, r * 0.6);
       d.shell.scale.set(r * 2, r, r);
       d.rings.forEach((m, j) => {
+        m.material.color.set(j % 2 ? "#e5ffff" : p.color);
         m.rotation.set(clock * 8 + j * 0.5, Math.PI / 2, 0);
         m.position.x = -j * 0.28;
         m.scale.setScalar(r * (1.2 + j * 0.25));

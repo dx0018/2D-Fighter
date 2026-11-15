@@ -4,6 +4,7 @@ import "@fontsource/barlow-condensed/latin-700.css";
 import "@fontsource/barlow-condensed/latin-800.css";
 import { characters, maps } from "./config/content.js";
 import { Game } from "./game/engine.js";
+import { contextLabels, selectMove, moveList } from "./game/moves.js";
 import { Input } from "./game/input.js";
 import { GameAudio } from "./game/audio.js";
 import { ArenaRenderer } from "./render/arena.js";
@@ -116,7 +117,26 @@ function hudPlayer(c, p) {
   return `<div class="hud-player hud-p${p + 1}"><div class="hud-name"><span class="p${p + 1}">P${p + 1}</span><b>${esc(c.name)}</b><span id="hp-text-${p}">100 / 100</span></div><div class="health-track"><div id="hp-lag-${p}" class="health-lag"></div><div id="hp-${p}" class="health-fill"></div></div><div class="energy-row"><div class="energy-track"><div id="energy-${p}" class="energy-fill"></div></div><span id="energy-text-${p}">100 EP</span></div></div>`;
 }
 function skillTray(c, p) {
-  return `<div class="skill-tray p${p + 1}"><span class="tray-player">P${p + 1}</span>${["attack", "skill", "ultimate"].map((k, i) => `<div class="skill-slot" id="slot-${p}-${k}"><kbd>${(p ? ["J", "K", "L"] : ["F", "G", "H"])[i]}</kbd><span><b>${esc(c.moves[k].name)}</b><small id="cooldown-${p}-${k}">${c.moves[k].cost || 0} EP</small></span><i class="cooldown-cover" id="cover-${p}-${k}"></i></div>`).join("")}</div>`;
+  return `<div class="skill-tray p${p + 1}"><span class="tray-player">P${p + 1}</span>${["attack", "skill", "ultimate"].map((k, i) => `<div class="skill-slot" id="slot-${p}-${k}"><kbd>${(p ? ["J", "K", "L"] : ["F", "G", "H"])[i]}</kbd><span><b id="move-name-${p}-${k}">${esc(c.moves[k].name)}</b><small id="cooldown-${p}-${k}">${c.moves[k].cost || 0} EP</small></span><i class="cooldown-cover" id="cover-${p}-${k}"></i></div>`).join("")}</div>`;
+}
+function skillGuide(cs) {
+  return `<details class="move-guide"><summary>方向招式表 <span>G / K 随方向和姿态变化</span></summary><p class="move-guide-note">前＝朝敌人移动，后＝远离敌人，两人换边后会自动对应。空中优先于下蹲与方向；跳跃＋技能可同时按。所有方向技能共用冷却，大招仍是独立的 H / L。</p><div class="move-guide-grid">${cs
+    .map(
+      (c, p) =>
+        `<section><h3><b class="p${p + 1}">P${p + 1}</b> ${esc(c.name)} <kbd>${p ? "K" : "G"}</kbd></h3>${moveList(
+          c,
+        )
+          .map(
+            (move) =>
+              `<article><span class="move-context">${contextLabels[move.context]}</span><div><b>${esc(move.name)}</b><p>${esc(move.description)}</p><small>${move.cost} EP · ${move.cooldown.toFixed(1)} 秒</small></div></article>`,
+          )
+          .join(
+            "",
+          )}<p class="move-basic-note">${p ? "J" : "F"} 普攻也会随蹲下／空中变化：${esc(selectMove(c, "attack", "crouch").name)}、${esc(selectMove(c, "attack", "air").name)}。</p></section>`,
+    )
+    .join(
+      "",
+    )}</div><p class="move-guide-note">蹲下可躲高位空气炮；跳跃可越过贴地弹和滑踢。招式落空后有收招时间，留意对手的动作再反击。</p></details>`;
 }
 function touchPad(p) {
   return `<div class="touch-pad"><b class="p${p + 1}">P${p + 1}</b>${[
@@ -151,6 +171,12 @@ function startFight() {
   } catch (e) {
     rendererWarning(e);
   }
+  document
+    .querySelector(".touch-controls")
+    .insertAdjacentHTML("beforebegin", skillGuide(cs));
+  document.querySelector(
+    ".battle-controls-note > span:nth-child(2)",
+  ).textContent = "G / K 随方向变招 · 前／后以敌人位置为准";
   input.enabled = true;
   updateHud();
 }
@@ -192,21 +218,29 @@ function updateHud() {
     document.querySelector(`#energy-text-${p}`).textContent =
       `${Math.floor(f.energy)} EP`;
     ["attack", "skill", "ultimate"].forEach((k) => {
+      const move =
+        f.currentMove?.key === k
+          ? f.currentMove.move
+          : selectMove(f.character, k, f.inputContext);
       const cd = f.cooldowns[k] || 0,
-        cost = f.character.moves[k].cost || 0;
+        cost = move.cost || 0;
+      document.querySelector(`#move-name-${p}-${k}`).textContent = move.name;
+      const slot = document.querySelector(`#slot-${p}-${k}`);
+      slot.dataset.context = move.context;
+      slot.title = `${contextLabels[move.context]} · ${move.description}`;
       document.querySelector(`#cooldown-${p}-${k}`).textContent =
         cd > 0.05
           ? `${cd.toFixed(1)} 秒`
           : f.energy < cost
             ? `能量不足 · ${cost} EP`
             : cost
-              ? `就绪 · ${cost} EP`
+              ? `${k === "ultimate" ? "大招" : contextLabels[move.context]} · ${cost} EP`
               : "就绪";
       document
         .querySelector(`#slot-${p}-${k}`)
         .classList.toggle("unavailable", cd > 0.05 || f.energy < cost);
       document.querySelector(`#cover-${p}-${k}`).style.transform =
-        `scaleY(${Math.min(1, cd / (f.character.moves[k].cooldown || 1))})`;
+        `scaleY(${Math.min(1, cd / (f.cooldownTotals[k] || 1))})`;
     });
   });
   document.querySelector("#timer").textContent = String(
@@ -290,6 +324,10 @@ function showHelp() {
       "",
     )}</div><div class="help-rules"><p><b>打出你的节奏</b>普攻近距离生效；技能与大招具有不同范围。每次按下触发一次招式，观察下方冷却与能量提示。</p><p><b>99 秒，一局定胜负</b>生命归零即结束；时间耗尽比较剩余生命比例，同时归零或生命比例相同为平局。木箱可破坏，招牌会响应攻击。</p><p><b>暂停与声音</b>按 Esc 暂停。切换窗口会自动暂停。右上角音符可开关合成音效。</p></div><button class="button primary full" data-action="close-help">明白了，出发！ <span>→</span></button></section>`;
   el.dataset.resume = String(resume);
+  el.querySelector(".help-rules").insertAdjacentHTML(
+    "beforebegin",
+    skillGuide(getChars()),
+  );
   document.body.append(el);
   el.querySelector(".modal-close").focus();
 }

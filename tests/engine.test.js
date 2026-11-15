@@ -76,6 +76,8 @@ test("movement respects both arena bounds and jump returns to the ground", () =>
   assert.equal(game.state.fighters[0].x, maps[0].bounds.left + 0.6);
   assert.equal(game.state.fighters[1].x, maps[0].bounds.right - 0.6);
   game.step(1 / 60, [{ jump: true }, {}]);
+  assert.ok(game.state.fighters[0].jumpStartup > 0);
+  advance(game, 0.1);
   assert.ok(game.state.fighters[0].y > 0);
   advance(game, 2);
   assert.equal(game.state.fighters[0].y, 0);
@@ -115,7 +117,7 @@ test("Po dash advances toward and damages its opponent", () => {
   ready(game);
   game.state.fighters[0].x = -1;
   game.state.fighters[1].x = 4;
-  advance(game, 0.9, [{}, { skill: true }]);
+  advance(game, 0.9, [{}, { left: true, skill: true }]);
   assert.equal(game.state.fighters[0].hp, 82);
   assert.ok(game.state.fighters[1].x < 4);
 });
@@ -213,6 +215,7 @@ test("holding jump does not auto-repeat or permit a double jump", () => {
   assert.equal(game.state.fighters[0].grounded, true);
   advance(game, 0.05);
   game.step(1 / 60, [{ jump: true }, {}]);
+  advance(game, 0.1);
   assert.ok(game.state.fighters[0].y > 0);
   advance(game, 0.1);
   const vy = game.state.fighters[0].vy;

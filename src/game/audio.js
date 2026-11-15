@@ -99,37 +99,74 @@ export class GameAudio {
       return;
     }
     if (e.type === "cast") {
+      const duration = Math.max(0.07, e.duration ?? 0.2);
       if (e.kind === "melee") {
         this.noiseBurst(0.12, 2100, 0.09);
         return;
       }
       if (e.kind === "projectile") {
         this.tone(280, 720, 0.16, 0.1);
-        this.noiseBurst(0.22, 1800, 0.19, 0.23);
-        this.tone(230, 70, 0.22, 0.16, "sine", 0.24);
       }
       if (e.kind === "dash") {
-        this.noiseBurst(0.35, 1400, 0.16, 0.18);
-        this.tone(160, 60, 0.27, 0.18, "triangle", 0.18);
+        this.noiseBurst(duration, 1000, 0.06);
       }
       if (e.kind === "beam") {
-        this.tone(140, 850, 0.75, 0.12, "triangle");
-        this.tone(210, 1275, 0.75, 0.07);
+        this.tone(
+          e.ultimate ? 140 : 480,
+          e.ultimate ? 850 : 1400,
+          duration,
+          0.1,
+          "triangle",
+        );
+        this.tone(
+          e.ultimate ? 210 : 720,
+          e.ultimate ? 1275 : 2100,
+          duration,
+          0.05,
+        );
       }
       if (e.kind === "pulse") {
         [196, 247, 294].forEach((n, i) =>
-          this.tone(n, n * 2, 0.68, 0.09, "sine", i * 0.035),
+          this.tone(n, n * 2, duration, 0.07, "sine", i * 0.025),
         );
       }
     } else if (e.type === "release") {
+      if (e.kind === "projectile") {
+        this.noiseBurst(0.2, 1800, 0.17);
+        this.tone(230, 70, 0.2, 0.14);
+      }
+      if (e.kind === "dash") {
+        this.noiseBurst(0.27, 1400, 0.16);
+        this.tone(160, 60, 0.23, 0.16, "triangle");
+      }
       if (e.kind === "beam") {
-        this.noiseBurst(0.5, 3100, 0.23);
-        this.tone(620, 95, 0.55, 0.24, "sawtooth");
-        this.tone(80, 35, 0.35, 0.25);
+        this.noiseBurst(
+          e.ultimate ? 0.5 : 0.22,
+          3100,
+          e.ultimate ? 0.23 : 0.12,
+        );
+        this.tone(
+          e.ultimate ? 620 : 1300,
+          e.ultimate ? 95 : 300,
+          e.ultimate ? 0.55 : 0.25,
+          e.ultimate ? 0.24 : 0.09,
+          "sawtooth",
+        );
+        if (e.ultimate) this.tone(80, 35, 0.35, 0.25);
       }
       if (e.kind === "pulse") {
-        this.tone(95, 28, 0.45, 0.4, "triangle");
-        this.noiseBurst(0.34, 1500, 0.25);
+        this.tone(
+          95,
+          28,
+          e.ultimate ? 0.45 : 0.24,
+          e.ultimate ? 0.4 : 0.18,
+          "triangle",
+        );
+        this.noiseBurst(
+          e.ultimate ? 0.34 : 0.18,
+          1500,
+          e.ultimate ? 0.25 : 0.12,
+        );
         [392, 494, 587].forEach((n, i) =>
           this.tone(n, n * 0.6, 0.5, 0.06, "sine", i * 0.04),
         );

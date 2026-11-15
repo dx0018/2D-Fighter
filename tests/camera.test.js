@@ -2,7 +2,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as THREE from "three";
 import { ArenaCamera } from "../src/render/camera.js";
-import { maps } from "../src/config/content.js";
+import { maps, characters } from "../src/config/content.js";
+import { Game } from "../src/game/engine.js";
 for (const map of maps)
   for (const aspect of [2, 0.94, 2.8]) {
     test(`${map.id} perspective framing keeps both fighters visible at aspect ${aspect}`, () => {
@@ -47,4 +48,32 @@ test("fast separation never clips fighters while zoom is catching up", () => {
       assert.ok(Math.abs(p.x) < 0.98);
     }
   }
+});
+test("air-skill trajectories stay below the HUD while a grounded rival stays on screen", () => {
+  for (const aspect of [2, 0.94, 2.8])
+    for (const p of [0, 1]) {
+      const g = new Game({ characters, map: maps[0] }),
+        rig = new ArenaCamera(maps[0]);
+      g.state.phase = "fighting";
+      for (let i = 0; i < 240; i++) {
+        g.step(
+          1 / 120,
+          i === 0
+            ? [
+                p === 0 ? { jump: true, skill: true } : {},
+                p === 1 ? { jump: true, skill: true } : {},
+              ]
+            : [{}, {}],
+        );
+        rig.update(g.state.fighters, aspect, 1 / 120);
+        for (const f of g.state.fighters)
+          for (const y of [f.y, f.y + 3.3]) {
+            const point = new THREE.Vector3(f.x, y, 0.5).project(rig.camera);
+            assert.ok(
+              point.y < 0.85 && point.y > -0.98,
+              `framing ${aspect}: ${point.y}`,
+            );
+          }
+      }
+    }
 });

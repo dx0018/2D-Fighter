@@ -60,16 +60,16 @@ try {
         const fs = g.state.fighters;
         fs[0].x = close ? -1 : -3;
         fs[1].x = close ? 1 : 3;
-        for (let i = 0; i < seconds * 120; i++) {
-          g.step(
-            1 / 120,
-            i === 0
-              ? [
-                  player === 0 ? { [key]: true } : {},
-                  player === 1 ? { [key]: true } : {},
-                ]
-              : [{}, {}],
+        for (let warm = 0; warm < 60; warm++)
+          fs.forEach((f, j) =>
+            animateFighter(a.fighters[j], f, 1 / 60, warm / 60, j),
           );
+        const command = typeof key === "string" ? { [key]: true } : key;
+        for (let i = 0; i < seconds * 120; i++) {
+          g.step(1 / 120, [
+            player === 0 ? command : {},
+            player === 1 ? command : {},
+          ]);
           g.state.fighters.forEach((f, j) =>
             animateFighter(
               a.fighters[j],
@@ -104,8 +104,32 @@ try {
   await screenshot("punch-impact");
   await pose(0, "skill", 0.4);
   await screenshot("air-cannon");
-  await pose(1, "skill", 0.28);
+  await pose(1, { left: true, skill: true }, 0.28);
   await screenshot("dash");
+  await pose(1, "skill", 0.36);
+  await screenshot("antenna-beam");
+  await pose(0, { crouch: true }, 0.3);
+  await screenshot("crouch");
+  await pose(0, { right: true }, 0.3);
+  await screenshot("walk");
+  await pose(0, { jump: true }, 0.05);
+  await screenshot("takeoff");
+  await pose(0, { jump: true }, 0.45);
+  await screenshot("jump-apex");
+  await pose(0, { jump: true }, 1.1);
+  await screenshot("landing");
+  await pose(0, { crouch: true, skill: true }, 0.34);
+  await screenshot("low-cannon");
+  await pose(0, { jump: true, skill: true }, 0.37);
+  await screenshot("air-cannon-diagonal");
+  await pose(1, { crouch: true, skill: true }, 0.32);
+  await screenshot("slide");
+  await pose(1, { jump: true, skill: true }, 0.36);
+  await screenshot("air-spin");
+  await pose(1, { right: true, skill: true }, 0.32);
+  await screenshot("retreat-pulse");
+  await pose(0, { crouch: true, attack: true }, 0.2);
+  await screenshot("low-sweep");
   await pose(0, "ultimate", 0.6);
   await screenshot("beam-charge");
   await pose(0, "ultimate", 0.85);
@@ -136,7 +160,7 @@ try {
   await screenshot("moon");
   assert.deepEqual(errors, []);
   console.log(
-    "PASS: Three.js renders three upgraded stages and all move types, desktop/narrow HUD, no shader or runtime errors.",
+    "PASS: Three.js renders three stages, locomotion, crouch, jump/landing and contextual moves, desktop/narrow HUD, no shader or runtime errors.",
   );
 } finally {
   await browser.close();

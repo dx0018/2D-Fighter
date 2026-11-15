@@ -40,6 +40,8 @@ export class ArenaCamera {
       tallest - visibleHeight * 0.37,
     );
     this.targetY = damp(this.targetY, yTarget, dt, 5);
+    // Rising air skills need immediate headroom; ease back down after landing.
+    this.targetY = Math.max(this.targetY, tallest - visibleHeight * 0.37);
     this.camera.aspect = aspect;
     const z =
       this.width /

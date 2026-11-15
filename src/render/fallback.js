@@ -125,15 +125,19 @@ export function drawFallback(state) {
   for (const e of state.effects || []) {
     const a = 1 - e.life / (e.maxLife || 0.6);
     if (e.type === "beam") {
+      c.save();
+      c.translate(px(e.x), base - e.y * scale);
+      c.rotate(-(e.angle || 0) * (e.direction || 1));
       c.fillStyle = e.color || "#b2edff";
       c.globalAlpha = (1 - a) * 0.65;
       c.fillRect(
-        px(e.x),
-        base - (e.y + 0.35) * scale,
+        0,
+        -(e.radius || 0.35) * scale,
         (e.direction || 1) * (e.range || 12) * scale,
-        0.7 * scale,
+        (e.radius || 0.35) * 2 * scale,
       );
       c.globalAlpha = 1;
+      c.restore();
     }
     c.strokeStyle = e.color || "#ffe8af";
     c.lineWidth = scale * 0.06 * (1 - a);
