@@ -60,10 +60,33 @@ try {
     for (const key of keys) await page.keyboard.up(key);
   }
   await reset();
+  await page.selectOption('[data-setting="quality"]', "high");
+  await page.waitForFunction(
+    () => __POCKET__.arena.quality.profile.level === "high",
+  );
+  assert.ok(await page.evaluate(() => __POCKET__.arena.sun.castShadow));
+  const initialX = await page.evaluate(
+    () => __POCKET__.game.state.fighters[0].x,
+  );
+  await page.keyboard.down("d");
+  await page.waitForFunction(
+    (x) => __POCKET__.game.state.fighters[0].x > x + 0.15,
+    initialX,
+  );
+  await page.keyboard.up("d");
+  await page.selectOption('[data-setting="quality"]', "performance");
+  await page.waitForFunction(
+    () => __POCKET__.arena.quality.profile.level === "performance",
+  );
+  assert.equal(
+    await page.evaluate(() => __POCKET__.arena.sun.castShadow),
+    false,
+  );
+  await reset();
   const heights = await page.evaluate(async () => {
     const T = await import("/node_modules/three/build/three.module.js");
     return __POCKET__.arena.fighters.map(
-      (m) => new T.Box3().setFromObject(m.head).max.y,
+      (m) => new T.Box3().setFromObject(m.head, true).max.y,
     );
   });
   await page.keyboard.down("s");
@@ -74,12 +97,21 @@ try {
   const crouched = await page.evaluate(async () => {
     const T = await import("/node_modules/three/build/three.module.js");
     return __POCKET__.arena.fighters.map((m) => ({
-      head: new T.Box3().setFromObject(m.head).max.y,
+      head: new T.Box3().setFromObject(m.head, true).max.y,
       feet: m.legs.map((l) => new T.Box3().setFromObject(l.foot).min.y),
+      torsoMin: Math.min(
+        ...m.body.children
+          .filter((o) => o.isMesh)
+          .map((o) => new T.Box3().setFromObject(o, true).min.y),
+      ),
     }));
   });
   crouched.forEach((c, i) => {
-    assert.ok(c.head < heights[i] - 0.6, "both characters visibly lower");
+    assert.ok(c.head < heights[i] - 0.5, "both characters visibly lower");
+    assert.ok(
+      c.torsoMin > -0.04,
+      "crouch keeps torso and screen clear of the floor",
+    );
     assert.ok(
       c.feet.every((y) => Math.abs(y) < 0.04),
       "squat feet stay on ground",

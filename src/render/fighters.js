@@ -8,424 +8,419 @@ import {
   ring,
   surface,
   noiseTexture,
+  batchRigid,
 } from "./primitives.js";
+import { makeChain, bindLimbs } from "./rig.js";
+
 function rig(type) {
   const root = new THREE.Group(),
     body = new THREE.Group(),
     head = new THREE.Group();
   root.add(body);
-  head.position.set(0, 2.1, 0);
   body.add(head);
+  head.position.y = type === "po" ? 2.1 : 2.21;
   return {
     type,
     root,
     body,
     head,
+    baseHead: head.position.y,
+    hipHeight: 0.82,
+    bones: [],
+    limbGeometries: [],
     arms: [],
     legs: [],
     eyes: [],
     pupils: [],
     materials: [],
-    baseHead: 2.1,
   };
 }
-function skin(model, color, plush = false) {
-  const m = new THREE.MeshPhysicalMaterial({
+function skin(m, color, plush = false) {
+  const mat = new THREE.MeshStandardMaterial({
     color,
-    roughness: plush ? 0.83 : 0.3,
+    roughness: plush ? 0.76 : 0.43,
     metalness: 0,
-    clearcoat: plush ? 0 : 0.4,
-    clearcoatRoughness: 0.28,
-    sheen: plush ? 0.8 : 0,
-    sheenColor: new THREE.Color(plush ? "#ff9b9a" : "#ffffff"),
-    sheenRoughness: 0.8,
+    envMapIntensity: 0.65,
   });
   if (plush) {
-    m.bumpMap = noiseTexture();
-    m.bumpScale = 0.018;
+    mat.bumpMap = noiseTexture();
+    mat.bumpScale = 0.009;
   }
-  model.materials.push(m);
-  return m;
+  m.materials.push(mat);
+  return mat;
 }
-function limb(g, mat, handMat, side, shoulder, plush) {
-  const joint = ball(g, mat, shoulder, [0.205, 0.205, 0.205]);
-  const upper = mesh(
-    g,
-    new THREE.CapsuleGeometry(plush ? 0.17 : 0.19, 0.35, 5, 16),
-    mat,
-  );
-  const lower = mesh(
-    g,
-    new THREE.CapsuleGeometry(plush ? 0.18 : 0.2, 0.27, 5, 16),
-    mat,
-  );
-  const hand = new THREE.Group();
-  g.add(hand);
-  ball(
-    hand,
-    handMat,
-    [0, 0, 0],
-    plush ? [0.24, 0.26, 0.23] : [0.285, 0.27, 0.28],
-  );
-  if (plush) {
-    ball(hand, handMat, [-side * 0.19, -0.03, 0.07], [0.11, 0.17, 0.13]);
-    curve(
-      hand,
-      surface("#b7294d"),
-      [
-        [-0.1, -0.13, 0.2],
-        [0.02, -0.15, 0.22],
-        [0.13, -0.11, 0.19],
-      ],
-      0.006,
-    );
-  }
-  return {
-    joint,
-    upper,
-    lower,
-    hand,
-    shoulder: new THREE.Vector3(...shoulder),
-    side,
-  };
+function silhouette(object) {
+  object.userData.silhouette = true;
+  return object;
 }
-function legs(model, mat, shoeMat, plush) {
+function facePatch(g, mat, rx, ry, cy, depth) {
+  const positions = [0, cy, depth(0, cy)],
+    uv = [0.5, 0.5],
+    indices = [],
+    rows = 14,
+    sides = 40;
+  for (let row = 1; row <= rows; row++)
+    for (let col = 0; col < sides; col++) {
+      const t = (col / sides) * Math.PI * 2,
+        r = row / rows,
+        x = rx * r * Math.cos(t),
+        y = cy + ry * r * Math.sin(t);
+      positions.push(x, y, depth(x, y));
+      uv.push((x / rx) * 0.5 + 0.5, ((y - cy) / ry) * 0.5 + 0.5);
+    }
+  for (let col = 0; col < sides; col++)
+    indices.push(0, 1 + col, 1 + ((col + 1) % sides));
+  for (let row = 0; row < rows - 1; row++)
+    for (let col = 0; col < sides; col++) {
+      const a = 1 + row * sides + col,
+        b = 1 + row * sides + ((col + 1) % sides),
+        c = a + sides,
+        d = b + sides;
+      indices.push(a, c, b, b, c, d);
+    }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  geo.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
+  geo.setIndex(indices);
+  geo.computeVertexNormals();
+  return mesh(g, geo, mat);
+}
+const torsoProfile = [
+  [0.6, 0.02],
+  [0.72, 0.46],
+  [0.94, 0.63],
+  [1.18, 0.64],
+  [1.44, 0.57],
+  [1.65, 0.39],
+  [1.78, 0.02],
+];
+function bodyRadius(y) {
+  let i = 0;
+  while (i < torsoProfile.length - 2 && y > torsoProfile[i + 1][0]) i++;
+  const [a, ra] = torsoProfile[i],
+    [b, rb] = torsoProfile[i + 1],
+    t = THREE.MathUtils.clamp((y - a) / (b - a), 0, 1),
+    p = torsoProfile[Math.max(0, i - 1)],
+    q = torsoProfile[Math.min(torsoProfile.length - 1, i + 2)],
+    ma = (rb - p[1]) / (b - p[0]),
+    mb = (q[1] - ra) / (q[0] - a);
+  return Math.max(
+    0.005,
+    (2 * t * t * t - 3 * t * t + 1) * ra +
+      (t * t * t - 2 * t * t + t) * (b - a) * ma +
+      (-2 * t * t * t + 3 * t * t) * rb +
+      (t * t * t - t * t) * (b - a) * mb,
+  );
+}
+const bellyZ = (x, y) =>
+  Math.sqrt(Math.max(0.002, bodyRadius(y) ** 2 - x * x)) + 0.009;
+function torso(m, mat) {
+  const points = Array.from({ length: 49 }, (_, i) => {
+    const y = 0.6 + (i / 48) * 1.18;
+    return new THREE.Vector2(bodyRadius(y), y);
+  });
+  silhouette(mesh(m.body, new THREE.LatheGeometry(points, 40), mat));
+}
+function arms(m, material, handMat) {
   for (const side of [-1, 1]) {
-    const group = new THREE.Group();
-    model.root.add(group);
-    const upper = mesh(
-      group,
-      new THREE.CapsuleGeometry(plush ? 0.21 : 0.22, 0.24, 4, 12),
-      mat,
+    const shoulder = [side * 0.55, m.type === "po" ? 1.49 : 1.56, 0],
+      chain = makeChain(m, m.body, shoulder, 0.52, 0.48, 0.155, material);
+    const hand = new THREE.Group();
+    m.root.add(hand);
+    silhouette(
+      ball(
+        hand,
+        handMat,
+        [0, 0, 0],
+        m.type === "po" ? [0.22, 0.24, 0.22] : [0.255, 0.24, 0.25],
+      ),
     );
-    const lower = mesh(
-      group,
-      new THREE.CapsuleGeometry(plush ? 0.18 : 0.19, 0.22, 4, 12),
-      mat,
-    );
-    const knee = ball(group, mat, [0, 0, 0], [0.205, 0.205, 0.205]);
-    const foot = ball(
-      group,
-      shoeMat,
-      [side * 0.37, 0.205, 0.17],
-      plush ? [0.33, 0.21, 0.47] : [0.4, 0.2, 0.49],
-    );
-    model.legs.push({
-      group,
-      upper,
-      lower,
-      knee,
-      foot,
+    if (m.type === "po")
+      ball(hand, handMat, [-side * 0.16, -0.03, 0.06], [0.1, 0.13, 0.1]);
+    m.arms.push({
+      ...chain,
+      hand,
       side,
-      footHeight: plush ? 0.21 : 0.2,
+      shoulder: new THREE.Vector3(...shoulder),
     });
   }
 }
-function eye(model, side, { x = 0.22, y = 0.26, z = 0.7, white = true } = {}) {
+function legs(m, material, shoeMat) {
+  for (const side of [-1, 1]) {
+    const chain = makeChain(
+      m,
+      m.root,
+      [side * 0.29, 0.82, 0],
+      0.43,
+      0.42,
+      0.18,
+      material,
+    );
+    const foot = silhouette(
+      ball(
+        m.root,
+        shoeMat,
+        [side * 0.29, 0.19, 0.13],
+        m.type === "po" ? [0.3, 0.2, 0.41] : [0.33, 0.19, 0.43],
+      ),
+    );
+    m.legs.push({
+      ...chain,
+      foot,
+      side,
+      footHeight: m.type === "po" ? 0.2 : 0.19,
+    });
+  }
+}
+function eye(m, side, { x = 0.19, y = 0.28, z = 0.74, white = true } = {}) {
   const g = new THREE.Group();
   g.position.set(side * x, y, z);
-  model.head.add(g);
+  m.head.add(g);
   if (white)
     ball(
       g,
-      surface("#fffef6", { roughness: 0.23 }),
+      surface("#fffdf6", { roughness: 0.45 }),
       [0, 0, 0],
-      [0.225, 0.295, 0.145],
+      [0.198, 0.255, 0.105],
     );
   const pupil = ball(
     g,
-    surface("#12242e", { roughness: 0.15 }),
-    [-side * 0.045, 0, 0.14],
-    white ? [0.068, 0.105, 0.026] : [0.045, 0.065, 0.027],
+    surface("#172933", { roughness: 0.34 }),
+    [white ? -side * 0.035 : 0, 0, white ? 0.098 : 0.025],
+    white ? [0.057, 0.083, 0.024] : [0.039, 0.058, 0.023],
   );
-  ball(pupil, surface("#ffffff"), [-0.32, 0.35, 0.85], [0.26, 0.26, 0.1]);
-  model.eyes.push(g);
-  model.pupils.push(pupil);
-  return g;
+  ball(pupil, surface("#ffffff"), [-0.25, 0.3, 0.85], [0.24, 0.24, 0.1]);
+  m.eyes.push(g);
+  m.pupils.push(pupil);
 }
 function doraemon() {
   const m = rig("doraemon"),
-    blue = skin(m, "#058bd6"),
-    white = skin(m, "#f4faf6"),
-    red = skin(m, "#ec3c4d"),
-    dark = surface("#263b48", { roughness: 0.8 }),
-    gold = new THREE.MeshPhysicalMaterial({
-      color: "#ffbf34",
-      metalness: 0.6,
-      roughness: 0.26,
-      clearcoat: 0.3,
-    });
+    blue = skin(m, "#048fd0"),
+    white = skin(m, "#f5f7f1"),
+    red = skin(m, "#e74349"),
+    ink = surface("#263c49", { roughness: 0.8 }),
+    gold = surface("#edb531", { metalness: 0.62, roughness: 0.3 });
   m.materials.push(gold);
-  // Pear-shaped torso and integrated face volumes avoid the stacked-ball silhouette.
-  const profile = [
-    [0.08, 0.25],
-    [0.43, 0.26],
-    [0.63, 0.5],
-    [0.72, 0.88],
-    [0.66, 1.2],
-    [0.52, 1.55],
-    [0.3, 1.7],
-    [0.01, 1.72],
-  ].map(([r, y]) => new THREE.Vector2(r, y));
-  mesh(m.body, new THREE.LatheGeometry(profile, 48), blue);
-  ball(m.body, white, [0, 1.01, 0.64], [0.55, 0.58, 0.2]);
-  const pocketShape = new THREE.Shape();
-  pocketShape.moveTo(-0.34, 0);
-  pocketShape.lineTo(0.34, 0);
-  pocketShape.absarc(0, 0, 0.34, 0, -Math.PI, true);
-  const pocket = mesh(
-    m.body,
-    new THREE.ShapeGeometry(pocketShape, 36),
-    white,
-    [0, 1.08, 0.863],
-  );
-  pocket.rotation.x = -0.02;
-  curve(
-    m.body,
-    surface("#b5d3d9"),
-    [
-      [-0.34, 1.08, 0.865],
-      [-0.27, 0.88, 0.865],
-      [0, 0.76, 0.865],
-      [0.27, 0.88, 0.865],
-      [0.34, 1.08, 0.865],
-    ],
-    0.009,
-  );
+  torso(m, blue);
+  facePatch(m.body, white, 0.5, 0.44, 1.16, bellyZ);
+  const seam = [
+    [-0.29, 1.17],
+    [-0.23, 0.99],
+    [0, 0.9],
+    [0.23, 0.99],
+    [0.29, 1.17],
+  ].map(([x, y]) => [x, y, bellyZ(x, y) + 0.014]);
+  curve(m.body, surface("#bad1d4"), seam, 0.007);
   curve(
     m.body,
     white,
     [
-      [-0.35, 1.09, 0.875],
-      [0, 1.09, 0.88],
-      [0.35, 1.09, 0.875],
-    ],
-    0.025,
+      [-0.29, 1.18],
+      [0, 1.18],
+      [0.29, 1.18],
+    ].map(([x, y]) => [x, y, bellyZ(x, y) + 0.018]),
+    0.018,
   );
-  const collar = ring(m.body, red, 0.48, 0.065, [0, 1.46, 0]);
+  const collar = ring(m.body, red, 0.4, 0.054, [0, 1.58, 0]);
   collar.rotation.x = Math.PI / 2;
-  collar.scale.x = 1.14;
+  collar.scale.x = 1.12;
   curve(
     m.body,
     red,
     [
-      [-0.48, 1.48, 0.52],
-      [0, 1.45, 0.76],
-      [0.48, 1.48, 0.52],
+      [-0.44, 1.56, 0.3],
+      [0, 1.53, 0.57],
+      [0.44, 1.56, 0.3],
     ],
-    0.055,
+    0.045,
   );
-  const bell = ball(m.body, gold, [0, 1.39, 0.78], [0.14, 0.15, 0.13]);
-  const band = ring(m.body, gold, 0.14, 0.013, [0, 1.4, 0.78]);
-  band.rotation.x = Math.PI / 2;
+  m.bell = ball(m.body, gold, [0, 1.46, 0.64], [0.124, 0.13, 0.12]);
   curve(
     m.body,
-    surface("#855c28"),
+    surface("#92642b"),
     [
-      [-0.1, 1.42, 0.875],
-      [0, 1.42, 0.921],
-      [0.1, 1.42, 0.875],
+      [-0.09, 1.49, 0.735],
+      [0, 1.49, 0.766],
+      [0.09, 1.49, 0.735],
     ],
-    0.01,
+    0.007,
   );
-  ball(m.body, dark, [0, 1.35, 0.91], [0.026, 0.026, 0.012]);
+  ball(m.body, ink, [0, 1.42, 0.76], [0.022, 0.022, 0.01]);
   curve(
     m.body,
-    dark,
+    ink,
     [
-      [0, 1.35, 0.92],
-      [0, 1.27, 0.88],
+      [0, 1.42, 0.762],
+      [0, 1.35, 0.73],
     ],
-    0.008,
+    0.006,
   );
-  m.bell = bell;
-  ball(m.head, blue, [0, 0, 0], [0.93, 0.87, 0.79]);
-  ball(m.head, white, [0, -0.115, 0.57], [0.775, 0.67, 0.255]);
-  for (const s of [-1, 1]) {
-    eye(m, s, { y: 0.29, z: 0.68 });
-    for (let i = 0; i < 3; i++)
-      curve(
-        m.head,
-        dark,
-        [
-          [s * 0.32, -0.15 - i * 0.105, 0.824],
-          [s * 0.49, -0.15 - i * 0.14, 0.794],
-          [s * 0.7, -0.12 - i * 0.19, 0.716],
-        ],
-        0.011,
-      );
+  const headGeo = new THREE.SphereGeometry(1, 32, 24);
+  silhouette(mesh(m.head, headGeo, blue, [0, 0, 0], [0.92, 0.85, 0.8]));
+  const faceZ = (x, y) =>
+    0.8 * Math.sqrt(Math.max(0.015, 1 - (x / 0.92) ** 2 - (y / 0.85) ** 2)) +
+    0.007;
+  facePatch(m.head, white, 0.77, 0.66, -0.09, faceZ);
+  for (const side of [-1, 1]) {
+    eye(m, side);
+    for (let i = 0; i < 3; i++) {
+      const points = [
+        [side * 0.3, -0.11 - i * 0.105],
+        [side * 0.46, -0.11 - i * 0.14],
+        [side * 0.66, -0.08 - i * 0.18],
+      ].map(([x, y]) => [x, y, faceZ(x, y) + 0.014]);
+      curve(m.head, ink, points, 0.008);
+    }
   }
-  ball(m.head, red, [0, 0.04, 0.88], [0.135, 0.127, 0.115]);
+  ball(m.head, red, [0, 0.035, 0.849], [0.12, 0.11, 0.105]);
   curve(
     m.head,
-    dark,
+    ink,
     [
-      [0, -0.08, 0.855],
-      [0, -0.34, 0.817],
-    ],
-    0.011,
+      [0, -0.075],
+      [0, -0.3],
+    ].map(([x, y]) => [x, y, faceZ(x, y) + 0.012]),
+    0.008,
   );
   m.smile = curve(
     m.head,
-    dark,
+    ink,
     [
-      [-0.46, -0.28, 0.78],
-      [-0.28, -0.47, 0.779],
-      [0, -0.54, 0.76],
-      [0.28, -0.47, 0.779],
-      [0.46, -0.28, 0.78],
-    ],
-    0.016,
+      [-0.43, -0.25],
+      [-0.25, -0.42],
+      [0, -0.49],
+      [0.25, -0.42],
+      [0.43, -0.25],
+    ].map(([x, y]) => [x, y, faceZ(x, y) + 0.012]),
+    0.011,
   );
   m.mouth = ball(
     m.head,
-    surface("#6c2635"),
-    [0, -0.395, 0.811],
-    [0.26, 0.15, 0.025],
+    surface("#6d2b38"),
+    [0, -0.36, faceZ(0, -0.36) + 0.018],
+    [0.22, 0.12, 0.022],
   );
+  ball(m.mouth, surface("#eb9295"), [0, -0.35, 0.8], [0.65, 0.36, 0.23]);
   m.mouth.visible = false;
-  ball(m.mouth, surface("#f0858e"), [0, -0.32, 0.8], [0.7, 0.4, 0.3]);
-  for (const side of [-1, 1])
-    m.arms.push(limb(m.body, blue, white, side, [side * 0.61, 1.38, 0], false));
-  legs(m, blue, white, false);
-  // Actual barrel prop appears with gadget skills and follows the attacking wrist.
+  arms(m, blue, white);
+  legs(m, blue, white);
+  ball(m.body, red, [0, 0.9, -0.57], [0.12, 0.12, 0.12]);
   m.cannon = new THREE.Group();
   m.arms[1].hand.add(m.cannon);
-  const steel = surface("#8bb8c8", { metalness: 0.58, roughness: 0.26 }),
-    rim = surface("#d1eef3", { metalness: 0.7, roughness: 0.21 });
-  const barrel = tube(m.cannon, steel, [0.17, 0, 0], 0.24, 0.19, 0.62, 32);
+  const steel = surface("#8bb2c2", { metalness: 0.5, roughness: 0.35 }),
+    rim = surface("#cbe4e8", { metalness: 0.55, roughness: 0.3 });
+  const barrel = tube(m.cannon, steel, [0.14, 0, 0], 0.22, 0.18, 0.56, 20);
   barrel.rotation.z = -Math.PI / 2;
-  const rimMesh = ring(m.cannon, rim, 0.24, 0.043, [0.49, 0, 0]);
-  rimMesh.rotation.y = Math.PI / 2;
+  const lip = ring(m.cannon, rim, 0.22, 0.032, [0.43, 0, 0]);
+  lip.rotation.y = Math.PI / 2;
   const hole = tube(
     m.cannon,
-    surface("#123e54", { emissive: "#147a9d", emissiveIntensity: 0.8 }),
-    [0.49, 0, 0],
-    0.2,
-    0.2,
-    0.025,
-    32,
+    surface("#16455b", { emissive: "#137a9a", emissiveIntensity: 0.3 }),
+    [0.435, 0, 0],
+    0.18,
+    0.18,
+    0.016,
+    20,
   );
   hole.rotation.z = -Math.PI / 2;
   m.cannon.visible = false;
-  ball(m.body, red, [0, 0.65, -0.63], [0.13, 0.13, 0.13]);
   return m;
 }
 function po() {
   const m = rig("po"),
-    red = skin(m, "#d82f53", true),
-    skinMat = skin(m, "#efc9a5"),
-    inner = skin(m, "#ba2047", true);
-  m.head.position.y = 2.13;
-  m.baseHead = 2.13;
-  const profile = [
-    [0.02, 0.24],
-    [0.39, 0.24],
-    [0.61, 0.55],
-    [0.66, 0.95],
-    [0.55, 1.35],
-    [0.34, 1.64],
-    [0.01, 1.67],
-  ].map(([r, y]) => new THREE.Vector2(r, y));
-  mesh(m.body, new THREE.LatheGeometry(profile, 40), red);
-  curve(
-    m.body,
-    inner,
-    [
-      [0, 1.5, -0.47],
-      [0, 1.1, -0.66],
-      [0, 0.65, -0.56],
-    ],
-    0.008,
-  );
-  const bezel = roundBox(
-    m.body,
-    surface("#f3a1aa", { roughness: 0.45 }),
-    [0, 1.07, 0.55],
-    [0.87, 0.78, 0.17],
-  );
+    red = skin(m, "#d83150", true),
+    face = skin(m, "#edc7a5"),
+    inner = surface("#ae2845");
+  torso(m, red);
+  roundBox(m.body, surface("#eaa2a7"), [0, 1.19, 0.6], [0.79, 0.68, 0.14]);
   roundBox(
     m.body,
-    surface("#7a939e", { metalness: 0.65, roughness: 0.25 }),
-    [0, 1.07, 0.65],
-    [0.73, 0.64, 0.06],
+    surface("#718e99", { metalness: 0.4, roughness: 0.4 }),
+    [0, 1.19, 0.68],
+    [0.68, 0.57, 0.055],
   );
   m.screen = roundBox(
     m.body,
-    new THREE.MeshPhysicalMaterial({
-      color: "#a2e7ee",
-      metalness: 0.2,
-      roughness: 0.17,
-      clearcoat: 1,
-      emissive: "#62bfe4",
-      emissiveIntensity: 0.16,
+    surface("#a4dde5", {
+      metalness: 0.16,
+      roughness: 0.3,
+      emissive: "#65bbd3",
+      emissiveIntensity: 0.14,
     }),
-    [0, 1.07, 0.685],
-    [0.63, 0.53, 0.03],
+    [0, 1.19, 0.715],
+    [0.58, 0.47, 0.025],
   );
   m.materials.push(m.screen.material);
   curve(
     m.body,
-    surface("#d5fbff", { emissive: "#9cf3ff", emissiveIntensity: 0.8 }),
+    surface("#e0fbf5", { emissive: "#8ddcdb", emissiveIntensity: 0.35 }),
     [
-      [-0.23, 1.07, 0.709],
-      [-0.12, 1.07, 0.709],
-      [-0.05, 1.18, 0.709],
-      [0.04, 0.96, 0.709],
-      [0.1, 1.07, 0.709],
-      [0.23, 1.07, 0.709],
+      [-0.22, 1.18, 0.735],
+      [-0.11, 1.18, 0.735],
+      [-0.04, 1.28, 0.735],
+      [0.04, 1.08, 0.735],
+      [0.1, 1.18, 0.735],
+      [0.22, 1.18, 0.735],
     ],
-    0.012,
+    0.008,
   );
-  ball(m.head, red, [0, 0, 0], [0.77, 0.7, 0.59]);
-  for (const s of [-1, 1]) {
-    const ear = ball(m.head, red, [s * 0.74, 0.08, -0.01], [0.25, 0.23, 0.19]);
-    ear.rotation.z = -s * 0.3;
-    ball(m.head, inner, [s * 0.78, 0.08, 0.14], [0.13, 0.145, 0.035]);
-  }
-  ball(m.head, skinMat, [0, -0.035, 0.51], [0.565, 0.505, 0.163]);
-  for (const s of [-1, 1]) {
-    eye(m, s, { x: 0.19, y: 0.075, z: 0.658, white: false });
+  silhouette(
+    mesh(
+      m.head,
+      new THREE.SphereGeometry(1, 32, 22),
+      red,
+      [0, 0, 0],
+      [0.76, 0.7, 0.61],
+    ),
+  );
+  const front = (x, y) =>
+    0.61 * Math.sqrt(Math.max(0.02, 1 - (x / 0.76) ** 2 - (y / 0.7) ** 2)) +
+    0.01;
+  facePatch(m.head, face, 0.555, 0.49, -0.025, front);
+  for (const side of [-1, 1]) {
+    ball(m.head, red, [side * 0.73, 0.07, -0.01], [0.225, 0.21, 0.175]);
+    ball(m.head, inner, [side * 0.77, 0.07, 0.14], [0.115, 0.13, 0.027]);
+    eye(m, side, { x: 0.18, y: 0.075, z: front(0.18, 0.075), white: false });
     curve(
       m.head,
-      surface("#8b5b53"),
+      surface("#805c52"),
       [
-        [s * 0.1, 0.23, 0.66],
-        [s * 0.19, 0.25, 0.665],
-        [s * 0.27, 0.225, 0.636],
-      ],
-      0.014,
+        [side * 0.1, 0.22],
+        [side * 0.18, 0.24],
+        [side * 0.26, 0.215],
+      ].map(([x, y]) => [x, y, front(x, y) + 0.009]),
+      0.01,
     );
     ball(
       m.head,
-      surface("#e7a297", { roughness: 0.9 }),
-      [s * 0.34, -0.16, 0.637],
-      [0.09, 0.045, 0.013],
+      surface("#dfa298"),
+      [side * 0.33, -0.14, front(0.33, -0.14) + 0.01],
+      [0.075, 0.034, 0.012],
     );
   }
-  ball(m.head, skinMat, [0, -0.07, 0.69], [0.08, 0.08, 0.065]);
+  ball(m.head, face, [0, -0.07, front(0, -0.07) + 0.028], [0.07, 0.068, 0.057]);
   m.smile = curve(
     m.head,
-    surface("#9f5c55"),
+    surface("#9b6055"),
     [
-      [-0.21, -0.23, 0.658],
-      [-0.1, -0.29, 0.675],
-      [0, -0.31, 0.675],
-      [0.11, -0.29, 0.674],
-      [0.21, -0.23, 0.658],
-    ],
-    0.016,
+      [-0.2, -0.21],
+      [-0.1, -0.27],
+      [0, -0.29],
+      [0.1, -0.27],
+      [0.2, -0.21],
+    ].map(([x, y]) => [x, y, front(x, y) + 0.014]),
+    0.011,
   );
   m.mouth = ball(
     m.head,
-    surface("#81354b"),
-    [0, -0.235, 0.682],
-    [0.19, 0.125, 0.018],
+    surface("#783548"),
+    [0, -0.23, front(0, -0.23) + 0.015],
+    [0.17, 0.105, 0.018],
   );
+  ball(m.mouth, surface("#f1ada9"), [0, -0.35, 0.8], [0.65, 0.36, 0.23]);
   m.mouth.visible = false;
-  ball(m.mouth, surface("#f6aea8"), [0, -0.35, 0.8], [0.7, 0.4, 0.3]);
   m.antenna = new THREE.Group();
-  m.antenna.position.set(0, 0.59, 0);
+  m.antenna.position.set(0, 0.61, 0);
   m.head.add(m.antenna);
   curve(
     m.antenna,
@@ -435,12 +430,11 @@ function po() {
       [0, 0.2, 0],
       [0.025, 0.35, 0],
     ],
-    0.065,
+    0.055,
   );
-  ring(m.antenna, red, 0.175, 0.06, [0.025, 0.49, 0]);
-  for (const side of [-1, 1])
-    m.arms.push(limb(m.body, red, red, side, [side * 0.53, 1.43, 0], true));
-  legs(m, red, red, true);
+  ring(m.antenna, red, 0.16, 0.05, [0.025, 0.49, 0]);
+  arms(m, red, red);
+  legs(m, red, red);
   return m;
 }
 const builders = new Map([
@@ -449,6 +443,22 @@ const builders = new Map([
 ]);
 export const registerFighterModel = (style, builder) =>
   builders.set(style, builder);
-export function makeFighter(c) {
-  return (builders.get(c.bodyStyle) || doraemon)(c);
+export function makeFighter(character) {
+  const m = (builders.get(character.bodyStyle) || doraemon)(character);
+  if (!m.bones) return m;
+  bindLimbs(m);
+  batchRigid(m.head, [...m.eyes, m.smile, m.mouth, m.antenna].filter(Boolean));
+  batchRigid(m.body, [m.head]);
+  for (const arm of m.arms) batchRigid(arm.hand, [m.cannon].filter(Boolean));
+  m.root.traverse((o) => {
+    if (o.isMesh && !o.isSkinnedMesh) {
+      o.castShadow = !!o.userData.silhouette;
+      o.receiveShadow = false;
+    }
+  });
+  m.bodyInverse = new THREE.Matrix4();
+  m.vector = new THREE.Vector3();
+  m.target = new THREE.Vector3();
+  m.pole = new THREE.Vector3();
+  return m;
 }

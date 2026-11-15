@@ -82,7 +82,11 @@ try {
       host.style.cssText =
         "width:960px;height:540px;position:fixed;left:0;top:0";
       document.body.append(host);
-      const arena = new ArenaRenderer(host, { map, characters });
+      const arena = new ArenaRenderer(host, {
+        map,
+        characters,
+        quality: "high",
+      });
       const game = new Game({ characters, map });
       for (const f of arena.fighters) f.root.visible = false;
       for (const shadow of arena.shadows) shadow.visible = false;

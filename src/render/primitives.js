@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
+import { mergeScenery } from "./surface-batching.js";
 export const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 export const damp = (a, b, dt, s = 12) =>
   THREE.MathUtils.lerp(a, b, 1 - Math.exp(-dt * s));
@@ -8,9 +9,9 @@ export const ease = (t) => {
   t = clamp(t, 0, 1);
   return t * t * (3 - 2 * t);
 };
-const sphereGeo = new THREE.SphereGeometry(1, 24, 16);
+const sphereGeo = new THREE.SphereGeometry(1, 16, 12);
 const boxGeo = new THREE.BoxGeometry(1, 1, 1);
-const roundedGeo = new RoundedBoxGeometry(1, 1, 1, 3, 0.12);
+const roundedGeo = new RoundedBoxGeometry(1, 1, 1, 2, 0.12);
 export function surface(color, extra = {}) {
   return new THREE.MeshStandardMaterial({
     color,
@@ -108,48 +109,7 @@ export function noiseTexture(seed = 17) {
 }
 // Static scenery is merged by material, keeping rich stages affordable to render.
 export function batchStatic(group) {
-  group.updateMatrixWorld(true);
-  const buckets = new Map();
-  const originals = [];
-  group.traverse((o) => {
-    if (!o.isMesh || Array.isArray(o.material)) return;
-    const key = [
-      o.material.color?.getHexString(),
-      o.material.roughness,
-      o.material.metalness,
-      o.material.emissive?.getHexString(),
-      o.material.emissiveIntensity,
-      o.material.map?.uuid || "",
-      o.material.bumpMap?.uuid || "",
-      o.material.transparent,
-      o.material.opacity,
-    ].join(":");
-    if (!buckets.has(key))
-      buckets.set(key, { mat: o.material, geos: [], shadow: o.castShadow });
-    const geo = (
-      o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone()
-    ).applyMatrix4(o.matrixWorld);
-    buckets.get(key).geos.push(geo);
-    originals.push(o);
-  });
-  const merged = new THREE.Group();
-  for (const { mat, geos, shadow } of buckets.values()) {
-    const geo = mergeGeometries(geos);
-    if (geo) {
-      const m = new THREE.Mesh(geo, mat);
-      m.castShadow = shadow;
-      m.receiveShadow = true;
-      merged.add(m);
-    }
-    geos.forEach((g) => g.dispose());
-  }
-  const used = new Set([...buckets.values()].map((b) => b.mat));
-  for (const o of originals) {
-    if (![sphereGeo, boxGeo, roundedGeo].includes(o.geometry))
-      o.geometry.dispose();
-    if (!used.has(o.material)) o.material.dispose();
-  }
-  return merged;
+  return mergeScenery(group, [sphereGeo, boxGeo, roundedGeo]);
 }
 export function disposeTree(root) {
   const geos = new Set(),
@@ -191,4 +151,61 @@ export function softShadow() {
   m.rotation.x = -Math.PI / 2;
   m.position.y = 0.035;
   return m;
+}
+
+// Merge only rigid decoration inside a single attachment; animated nodes stay separate.
+export function batchRigid(group, excluded = []) {
+  group.updateWorldMatrix(true, true);
+  const inverse = new THREE.Matrix4().copy(group.matrixWorld).invert(),
+    parts = new Map(),
+    originals = [];
+  function visit(node) {
+    if (excluded.includes(node)) return;
+    if (node.isMesh && !node.isSkinnedMesh && !Array.isArray(node.material)) {
+      const mat = node.material,
+        key = [
+          mat.type,
+          mat.color?.getHexString(),
+          mat.roughness,
+          mat.metalness,
+          mat.emissive?.getHexString(),
+          mat.emissiveIntensity,
+          mat.map?.uuid,
+          mat.bumpMap?.uuid,
+          !!node.userData.silhouette,
+        ].join(":");
+      if (!parts.has(key))
+        parts.set(key, {
+          material: mat,
+          geos: [],
+          shadow: !!node.userData.silhouette,
+        });
+      const geo = (
+        node.geometry.index
+          ? node.geometry.toNonIndexed()
+          : node.geometry.clone()
+      ).applyMatrix4(
+        new THREE.Matrix4().multiplyMatrices(inverse, node.matrixWorld),
+      );
+      parts.get(key).geos.push(geo);
+      originals.push(node);
+    } else for (const child of [...node.children]) visit(child);
+  }
+  for (const child of [...group.children]) visit(child);
+  for (const { material, geos, shadow } of parts.values()) {
+    const geometry = mergeGeometries(geos);
+    geos.forEach((g) => g.dispose());
+    if (geometry) {
+      const m = new THREE.Mesh(geometry, material);
+      m.castShadow = shadow;
+      m.userData.silhouette = shadow;
+      m.receiveShadow = false;
+      group.add(m);
+    }
+  }
+  for (const node of originals) {
+    node.removeFromParent();
+    if (![sphereGeo, boxGeo, roundedGeo].includes(node.geometry))
+      node.geometry.dispose();
+  }
 }

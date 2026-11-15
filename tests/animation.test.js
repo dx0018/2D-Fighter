@@ -25,17 +25,55 @@ test("crouch lowers the head, bends the legs and keeps both feet on the floor", 
   const m = makeFighter(characters[0]),
     f = state();
   animate(m, f);
-  const standing = new THREE.Box3().setFromObject(m.head).max.y;
+  const standing = new THREE.Box3().setFromObject(m.head, true).max.y;
   f.crouching = true;
   f.action = "crouch";
   animate(m, f);
-  assert.ok(new THREE.Box3().setFromObject(m.head).max.y < standing - 0.65);
+  assert.ok(
+    new THREE.Box3().setFromObject(m.head, true).max.y < standing - 0.55,
+  );
+  for (const part of m.body.children.filter((o) => o.isMesh))
+    assert.ok(
+      new THREE.Box3().setFromObject(part, true).min.y > -0.035,
+      "torso stays above the floor",
+    );
   for (const leg of m.legs) {
     const box = new THREE.Box3().setFromObject(leg.foot);
     assert.ok(Math.abs(box.min.y) < 0.035, `ground contact ${box.min.y}`);
-    assert.ok(Math.abs(leg.knee.position.x - leg.foot.position.x) > 0.1);
+    assert.ok(
+      Math.abs(leg.knee.distanceTo(leg.upper.position) - leg.upperLength) <
+        1e-5,
+    );
+    assert.ok(
+      Math.abs(leg.endpoint.distanceTo(leg.knee) - leg.lowerLength) < 1e-5,
+    );
   }
   disposeTree(m.root);
+});
+test("all walking and crouch poses preserve limb lengths and torso proportions", () => {
+  const m = makeFighter(characters[0]),
+    f = state();
+  for (let i = 0; i < 180; i++) {
+    f.walkDistance = (i / 180) * 2.1;
+    f.vx = 6.6;
+    f.action = i < 120 ? "walk" : "crouch";
+    f.crouching = i >= 120;
+    animateFighter(m, f, 1 / 60, i / 60, 0);
+    for (const limb of [...m.arms, ...m.legs]) {
+      assert.ok(
+        Math.abs(limb.knee.distanceTo(limb.upper.position) - limb.upperLength) <
+          1e-5,
+      );
+      assert.ok(
+        Math.abs(limb.endpoint.distanceTo(limb.knee) - limb.lowerLength) < 1e-5,
+      );
+      assert.deepEqual(limb.upper.scale.toArray(), [1, 1, 1]);
+    }
+    assert.deepEqual(m.body.scale.toArray(), [1, 1, 1]);
+    assert.deepEqual(m.head.scale.toArray(), [1, 1, 1]);
+  }
+  disposeTree(m.root);
+  m.skeleton.dispose();
 });
 test("support foot stays planted during actual horizontal travel instead of swinging into depth", () => {
   const m = makeFighter(characters[0]),
@@ -70,4 +108,21 @@ test("jump tucks the legs, and paused animation holds the complete pose", () => 
   animateFighter(m, f, 0, 200, 0);
   assert.deepEqual(m.root.toJSON(), before);
   disposeTree(m.root);
+});
+test("reversing movement does not teleport an already planted support foot", () => {
+  const m = makeFighter(characters[0]),
+    f = state();
+  f.action = "walk";
+  f.vx = 6.6;
+  f.walkDistance = 0.2 * 2.1;
+  animate(m, f);
+  const planted = m.legs[0].foot.getWorldPosition(new THREE.Vector3());
+  f.vx = -6.6;
+  f.x -= 0.06;
+  f.walkDistance += 0.06;
+  animate(m, f, 1);
+  const after = m.legs[0].foot.getWorldPosition(new THREE.Vector3());
+  assert.ok(after.distanceTo(planted) < 0.035);
+  disposeTree(m.root);
+  m.skeleton.dispose();
 });

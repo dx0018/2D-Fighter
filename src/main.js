@@ -4,6 +4,7 @@ import "@fontsource/barlow-condensed/latin-700.css";
 import "@fontsource/barlow-condensed/latin-800.css";
 import { characters, maps } from "./config/content.js";
 import { Game } from "./game/engine.js";
+import { frameDelta } from "./game/frame-time.js";
 import { contextLabels, selectMove, moveList } from "./game/moves.js";
 import { Input } from "./game/input.js";
 import { GameAudio } from "./game/audio.js";
@@ -22,7 +23,7 @@ let page = "home",
   paused = false,
   helpOpen = false,
   finishedHandled = false,
-  hudTick = 0,
+  homeTick = 0,
   last = performance.now();
 const input = new Input(() => togglePause());
 const esc = (s) =>
@@ -34,8 +35,40 @@ const esc = (s) =>
       ],
   );
 const getChars = () => selected.map((i) => characters[i]);
+let graphicsMode = "auto";
+try {
+  const saved = localStorage.getItem("pocket-graphics");
+  if (["auto", "high", "performance"].includes(saved)) graphicsMode = saved;
+} catch {}
+const hudNodes = new Map();
+const hudNode = (selector) => {
+  if (!hudNodes.has(selector))
+    hudNodes.set(selector, document.querySelector(selector));
+  return hudNodes.get(selector);
+};
+function hudText(selector, text) {
+  const node = hudNode(selector);
+  if (node.textContent !== text) node.textContent = text;
+}
+function hudStyle(selector, key, value) {
+  const node = hudNode(selector);
+  if (node.style[key] !== value) node.style[key] = value;
+}
+function qualityControl() {
+  return `<label class="quality-control"><span>画质</span><select aria-label="画面质量" data-setting="quality">${[
+    ["auto", "自动"],
+    ["high", "精细"],
+    ["performance", "流畅"],
+  ]
+    .map(
+      ([value, label]) =>
+        `<option value="${value}" ${graphicsMode === value ? "selected" : ""}>${label}</option>`,
+    )
+    .join("")}</select></label>`;
+}
+
 function header() {
-  return `<header class="site-header"><button class="brand" data-action="home" aria-label="口袋对决主页"><span class="brand-mark">p<span>c</span><i></i></span><span>POCKET<span>CLASH<span class="brand-dot">.</span></span></span></button><span class="header-caption">小小英雄，无限可能</span><nav><button class="text-button" data-action="help"><span class="key-symbol">?</span><span>操作说明</span></button><button class="icon-button sound" data-action="sound" aria-label="${audio.enabled ? "关闭" : "开启"}音效" aria-pressed="${audio.enabled}">${audio.enabled ? "♫" : "♩"}</button><span class="local-pill"><i></i> 本地双人</span></nav></header>`;
+  return `<header class="site-header"><button class="brand" data-action="home" aria-label="口袋对决主页"><span class="brand-mark">p<span>c</span><i></i></span><span>POCKET<span>CLASH<span class="brand-dot">.</span></span></span></button><span class="header-caption">小小英雄，无限可能</span><nav><button class="text-button" data-action="help"><span class="key-symbol">?</span><span>操作说明</span></button>${qualityControl()}<button class="icon-button sound" data-action="sound" aria-label="${audio.enabled ? "关闭" : "开启"}音效" aria-pressed="${audio.enabled}">${audio.enabled ? "♫" : "♩"}</button><span class="local-pill"><i></i> 本地双人</span></nav></header>`;
 }
 function footer() {
   return `<footer class="site-footer"><span>POCKET CLASH <b>© 2026</b></span><span>两位玩家 · 一台键盘 · 无数次再来一局</span><span class="footer-right">MADE FOR FRIENDLY RIVALRIES <i>✳</i></span></footer>`;
@@ -44,6 +77,8 @@ function steps(active) {
   return `<div class="steps" aria-label="游戏流程">${["选择角色", "选择场地", "准备开战"].map((x, i) => `<span class="${active === i ? "current" : active > i ? "done" : ""}"><b>${active > i ? "✓" : `0${i + 1}`}</b>${x}</span>${i < 2 ? "<i></i>" : ""}`).join("")}</div>`;
 }
 function teardown() {
+  hudNodes.clear();
+  homeTick = 0;
   arena?.dispose();
   arena = null;
   preview = null;
@@ -68,6 +103,7 @@ function showHome() {
     arena = new ArenaRenderer(document.querySelector("#home-arena"), {
       map: maps[0],
       characters: [characters[0], characters[1]],
+      quality: graphicsMode,
       onError: rendererWarning,
     });
   } catch (e) {
@@ -166,6 +202,7 @@ function startFight() {
     arena = new ArenaRenderer(document.querySelector("#battle-arena"), {
       map,
       characters: cs,
+      quality: graphicsMode,
       onError: rendererWarning,
     });
   } catch (e) {
@@ -185,79 +222,83 @@ function rendererWarning(error) {
   const target = document.querySelector("#feedback");
   if (target) target.textContent = "已启用兼容画面，游戏操作保持可用";
 }
-function updateHud() {
+function updateHud(dt = 1 / 60) {
   if (!game || page !== "fight") return;
   const s = game.state;
   s.fighters.forEach((f, p) => {
     const max = f.character.maxHp || 100,
-      energyMax = f.character.maxEnergy || 100;
-    const lag = document.querySelector(`#hp-lag-${p}`);
-    const percent = Math.max(0, (f.hp / max) * 100);
-    const old = Number(lag.dataset.percent ?? 100);
-    const trail = old < percent ? percent : old + (percent - old) * 0.15;
+      energyMax = f.character.maxEnergy || 100,
+      percent = Math.max(0, (f.hp / max) * 100),
+      lag = hudNode(`#hp-lag-${p}`),
+      old = Number(lag.dataset.percent ?? 100);
+    const trail =
+      old < percent ? percent : old + (percent - old) * (1 - Math.exp(-dt * 3));
     lag.dataset.percent = trail;
     lag.style.width = `${trail}%`;
-    const superBox = document.querySelector(`#super-${p}`),
-      cast = f.currentMove;
-    const showSuper =
-      cast?.key === "ultimate" && cast.elapsed < cast.move.windup + 0.2;
-    superBox.classList.toggle("active", !!showSuper);
-    if (showSuper) superBox.querySelector("b").textContent = cast.move.name;
-    const combo = document.querySelector(`#combo-${p}`);
-    combo.classList.toggle("active", f.combo >= 2 && f.comboWindow > 0);
+    const cast = f.currentMove,
+      showSuper =
+        cast?.key === "ultimate" && cast.elapsed < cast.move.windup + 0.2;
+    hudNode(`#super-${p}`).classList.toggle("active", !!showSuper);
+    if (showSuper) hudText(`#super-${p} b`, cast.move.name);
+    hudNode(`#combo-${p}`).classList.toggle(
+      "active",
+      f.combo >= 2 && f.comboWindow > 0,
+    );
     if (f.combo >= 2) {
-      combo.querySelector("b").textContent = `${f.combo} HITS`;
-      combo.querySelector("small").textContent = `${f.comboDamage} 伤害`;
+      hudText(`#combo-${p} b`, `${f.combo} HITS`);
+      hudText(`#combo-${p} small`, `${f.comboDamage} 伤害`);
     }
-    document.querySelector(`#hp-${p}`).style.width =
-      `${Math.max(0, (f.hp / max) * 100)}%`;
-    document.querySelector(`#hp-text-${p}`).textContent =
-      `${Math.ceil(f.hp)} / ${max}`;
-    document.querySelector(`#energy-${p}`).style.width =
-      `${(f.energy / energyMax) * 100}%`;
-    document.querySelector(`#energy-text-${p}`).textContent =
-      `${Math.floor(f.energy)} EP`;
-    ["attack", "skill", "ultimate"].forEach((k) => {
+    hudStyle(`#hp-${p}`, "width", `${percent}%`);
+    hudText(`#hp-text-${p}`, `${Math.ceil(f.hp)} / ${max}`);
+    hudStyle(`#energy-${p}`, "width", `${(f.energy / energyMax) * 100}%`);
+    hudText(`#energy-text-${p}`, `${Math.floor(f.energy)} EP`);
+    for (const key of ["attack", "skill", "ultimate"]) {
       const move =
-        f.currentMove?.key === k
-          ? f.currentMove.move
-          : selectMove(f.character, k, f.inputContext);
-      const cd = f.cooldowns[k] || 0,
+          cast?.key === key
+            ? cast.move
+            : selectMove(f.character, key, f.inputContext),
+        cd = f.cooldowns[key] || 0,
         cost = move.cost || 0;
-      document.querySelector(`#move-name-${p}-${k}`).textContent = move.name;
-      const slot = document.querySelector(`#slot-${p}-${k}`);
-      slot.dataset.context = move.context;
-      slot.title = `${contextLabels[move.context]} · ${move.description}`;
-      document.querySelector(`#cooldown-${p}-${k}`).textContent =
+      hudText(`#move-name-${p}-${key}`, move.name);
+      const slot = hudNode(`#slot-${p}-${key}`);
+      if (slot.dataset.context !== move.context)
+        slot.dataset.context = move.context;
+      const title = `${contextLabels[move.context]} · ${move.description}`;
+      if (slot.title !== title) slot.title = title;
+      hudText(
+        `#cooldown-${p}-${key}`,
         cd > 0.05
           ? `${cd.toFixed(1)} 秒`
           : f.energy < cost
             ? `能量不足 · ${cost} EP`
             : cost
-              ? `${k === "ultimate" ? "大招" : contextLabels[move.context]} · ${cost} EP`
-              : "就绪";
-      document
-        .querySelector(`#slot-${p}-${k}`)
-        .classList.toggle("unavailable", cd > 0.05 || f.energy < cost);
-      document.querySelector(`#cover-${p}-${k}`).style.transform =
-        `scaleY(${Math.min(1, cd / (f.cooldownTotals[k] || 1))})`;
-    });
+              ? `${key === "ultimate" ? "大招" : contextLabels[move.context]} · ${cost} EP`
+              : "就绪",
+      );
+      slot.classList.toggle("unavailable", cd > 0.05 || f.energy < cost);
+      hudStyle(
+        `#cover-${p}-${key}`,
+        "transform",
+        `scaleY(${Math.min(1, cd / (f.cooldownTotals[key] || 1))})`,
+      );
+    }
   });
-  document.querySelector("#timer").textContent = String(
-    Math.max(0, Math.ceil(s.time)),
-  ).padStart(2, "0");
-  document.querySelector("#timer").classList.toggle("urgent", s.time < 15);
-  document.querySelector("#impact-vignette").style.opacity = window.matchMedia(
-    "(prefers-reduced-motion: reduce)",
-  ).matches
-    ? 0
-    : (s.impactPulse || 0) * 0.5;
-  const overlay = document.querySelector("#battle-overlay");
+  hudText("#timer", String(Math.max(0, Math.ceil(s.time))).padStart(2, "0"));
+  hudNode("#timer").classList.toggle("urgent", s.time < 15);
+  hudStyle(
+    "#impact-vignette",
+    "opacity",
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches
+      ? "0"
+      : String((s.impactPulse || 0) * 0.5),
+  );
+  const overlay = hudNode("#battle-overlay");
   if (!paused && s.phase !== "finished") {
-    overlay.innerHTML =
+    const markup =
       s.phase === "countdown"
         ? `<div class="countdown"><span>准备好了吗？</span><b>${s.countdown > 0.7 ? Math.ceil(s.countdown) : "开战！"}</b><small>${esc(getChars()[0].name)} <i>VS</i> ${esc(getChars()[1].name)}</small></div>`
         : "";
+    if (overlay.innerHTML !== markup) overlay.innerHTML = markup;
   }
   if (s.phase === "finished" && !finishedHandled) {
     finishedHandled = true;
@@ -344,6 +385,15 @@ function closeHelp() {
   document.querySelector('[data-action="help"]')?.focus();
 }
 app.addEventListener("click", handleClick);
+app.addEventListener("change", (event) => {
+  if (event.target.dataset.setting !== "quality") return;
+  graphicsMode = event.target.value;
+  try {
+    localStorage.setItem("pocket-graphics", graphicsMode);
+  } catch {}
+  arena?.setQuality(graphicsMode);
+  event.target.blur();
+});
 document.body.addEventListener("click", (e) => {
   if (e.target.closest(".modal-root")) handleClick(e);
 });
@@ -469,19 +519,23 @@ document.addEventListener("keydown", (e) => {
   }
 });
 function frame(now) {
-  const dt = Math.min((now - last) / 1000, 0.05);
+  const elapsed = Math.max(0, (now - last) / 1000);
+  const dt = frameDelta(elapsed);
   last = now;
   try {
     if (page === "fight" && game) {
       game.step(dt, input.read());
-      arena?.update(game.state, game.paused ? 0 : dt);
-      hudTick += dt;
-      if (hudTick > 0.075) {
-        hudTick = 0;
-        updateHud();
-      }
+      updateHud(dt);
+      if (!game.paused || arena?.needsRender)
+        arena?.update(game.state, game.paused ? 0 : dt);
+      if (!game.paused) arena?.sampleFrame(elapsed);
     } else if (preview && arena) {
-      arena.update(preview.state, dt);
+      homeTick += dt;
+      if (homeTick >= 1 / 30 || arena.needsRender) {
+        arena.update(preview.state, homeTick);
+        homeTick = 0;
+      }
+      arena.sampleFrame(elapsed);
     }
   } catch (error) {
     console.error(error);

@@ -19,4 +19,4 @@ export function segmentHitsBox(ax, ay, bx, by, radius, x, width, y, height) {
   return true;
 }
 
-export const fighterHeight = (fighter) => (fighter.crouching ? 1.65 : 2.6);
+export const fighterHeight = (fighter) => (fighter.crouching ? 2.3 : 2.6);

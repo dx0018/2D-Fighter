@@ -63,6 +63,44 @@ export class CombatEffects {
     g.add(m);
     return m;
   }
+  particle(g, key, color, opacity = 1, wood = false) {
+    const pools = (g.userData.particles ??= new Map()),
+      id = `${key}:${wood}`;
+    if (!pools.has(id))
+      pools.set(id, { key, wood, opacity, proxies: [], colors: [] });
+    const pool = pools.get(id),
+      proxy = new THREE.Object3D();
+    proxy.material = { opacity };
+    pool.proxies.push(proxy);
+    pool.colors.push(color);
+    return proxy;
+  }
+  flushParticles(g) {
+    for (const pool of g.userData.particles?.values() || []) {
+      if (!pool.mesh) {
+        const material = pool.wood
+          ? new THREE.MeshStandardMaterial({ color: "#ffffff", roughness: 0.9 })
+          : this.mat("#ffffff", pool.opacity);
+        pool.mesh = new THREE.InstancedMesh(
+          this.geo[pool.key],
+          material,
+          pool.proxies.length,
+        );
+        pool.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+        pool.mesh.frustumCulled = false;
+        pool.proxies.forEach((p, i) =>
+          pool.mesh.setColorAt(i, new THREE.Color(pool.colors[i])),
+        );
+        g.add(pool.mesh);
+      }
+      pool.proxies.forEach((p, i) => {
+        p.updateMatrix();
+        pool.mesh.setMatrixAt(i, p.matrix);
+      });
+      pool.mesh.instanceMatrix.needsUpdate = true;
+      pool.mesh.material.opacity = pool.proxies[0].material.opacity;
+    }
+  }
   glow(g, color, size, opacity = 0.6) {
     const s = new THREE.Sprite(
       new THREE.SpriteMaterial({
@@ -89,7 +127,7 @@ export class CombatEffects {
       data.halo = this.glow(g, color, e.heavy ? 4.5 : 2.5, 0.55);
       data.ring = this.mesh(g, "ring", color, 0.8);
       for (let i = 0; i < (e.heavy ? 28 : 16); i++)
-        data.sparks.push(this.mesh(g, "spark", i % 3 ? color : "#fff4c9"));
+        data.sparks.push(this.particle(g, "spark", i % 3 ? color : "#fff4c9"));
     } else if (e.type === "cast") {
       data.halo = this.glow(g, color, 2, 0.35);
       for (let i = 0; i < 3; i++) {
@@ -97,7 +135,7 @@ export class CombatEffects {
         data.rings.push(m);
       }
       for (let i = 0; i < 18; i++)
-        data.sparks.push(this.mesh(g, "ball", color));
+        data.sparks.push(this.particle(g, "ball", color));
     } else if (e.type === "beam") {
       data.halo = this.glow(g, color, 4, 0.7);
       for (let i = 0; i < 3; i++) {
@@ -113,7 +151,7 @@ export class CombatEffects {
       for (let i = 0; i < 7; i++)
         data.rings.push(this.mesh(g, "ring", i % 2 ? color : "#d6ffff", 0.7));
       for (let i = 0; i < 22; i++)
-        data.sparks.push(this.mesh(g, "spark", color));
+        data.sparks.push(this.particle(g, "spark", color));
     } else if (e.type === "pulse") {
       data.halo = this.glow(g, color, 5, 0.5);
       for (let i = 0; i < 4; i++) {
@@ -123,7 +161,7 @@ export class CombatEffects {
       data.core = this.mesh(g, "ball", color, 0.13);
       for (let i = 0; i < 30; i++)
         data.sparks.push(
-          this.mesh(g, i % 3 ? "spark" : "star", i % 2 ? "#ffb7c7" : color),
+          this.particle(g, i % 3 ? "spark" : "star", i % 2 ? "#ffb7c7" : color),
         );
     } else if (e.type === "slash" || e.type === "dash") {
       for (let i = 0; i < 3; i++)
@@ -132,7 +170,7 @@ export class CombatEffects {
         );
       data.halo = this.glow(g, color, 1.4, 0.2);
       for (let i = 0; i < 8; i++)
-        data.sparks.push(this.mesh(g, "spark", color));
+        data.sparks.push(this.particle(g, "spark", color));
     } else {
       data.ring = this.mesh(
         g,
@@ -144,15 +182,8 @@ export class CombatEffects {
       for (let i = 0; i < (e.type === "break" ? 18 : 12); i++) {
         let m;
         if (e.type === "break") {
-          m = new THREE.Mesh(
-            this.geo.chip,
-            new THREE.MeshStandardMaterial({
-              color: i % 2 ? "#e9bb85" : color,
-              roughness: 0.9,
-            }),
-          );
-          g.add(m);
-        } else m = this.mesh(g, "ball", color, 0.15);
+          m = this.particle(g, "chip", i % 2 ? "#e9bb85" : color, 1, true);
+        } else m = this.particle(g, "ball", color, 0.15);
         data.sparks.push(m);
       }
     }
@@ -161,6 +192,7 @@ export class CombatEffects {
   }
   remove(d) {
     d.group.traverse((o) => {
+      if (o.isInstancedMesh) o.dispose();
       if (o.material) o.material.dispose();
     });
     this.scene.remove(d.group);
@@ -357,6 +389,7 @@ export class CombatEffects {
         this.remove(d);
         this.effects.delete(id);
       }
+    for (const d of this.effects.values()) this.flushParticles(d.group);
     this.light.intensity = light;
     while (this.projectiles.length < state.projectiles.length) {
       const g = new THREE.Group(),

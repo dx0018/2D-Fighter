@@ -205,7 +205,7 @@ export class Game {
         f.crouching = !!inputs[id].crouch && f.grounded;
         if (f.jumpBuffer > 0 && f.grounded && !f.crouching) {
           f.jumpBuffer = 0;
-          if (!f.jumpStartup) f.jumpStartup = 0.075;
+          if (!f.jumpStartup) f.jumpStartup = 0.025;
         }
         if (f.jumpStartup > 0) {
           f.jumpStartup = Math.max(0, f.jumpStartup - dt);
@@ -280,10 +280,9 @@ export class Game {
         const direction =
           Number(!!inputs[id].right) - Number(!!inputs[id].left);
         const targetSpeed = f.crouching ? 0 : direction * f.character.speed;
-        f.vx = f.crouching
-          ? 0
-          : f.vx +
-            (targetSpeed - f.vx) * (1 - Math.exp(-dt * (f.grounded ? 18 : 10)));
+        f.vx = f.grounded
+          ? targetSpeed
+          : f.vx + (targetSpeed - f.vx) * (1 - Math.exp(-dt * 18));
         if (Math.abs(f.vx) < 0.015) f.vx = 0;
         this.setAction(
           f,
@@ -397,7 +396,7 @@ export class Game {
     if (move.kind === "projectile") {
       this.state.projectiles.push({
         id: this.nextId++,
-        x: f.x + cast.facing * 1,
+        x: f.x + cast.facing * (move.originX ?? 1),
         y: f.y + move.height,
         direction: cast.facing,
         owner: f.id,

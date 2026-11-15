@@ -17,7 +17,7 @@ export const characters = [
     maxHp: 100,
     maxEnergy: 100,
     speed: 6.6,
-    jump: 11.8,
+    jump: 12.2,
     moves: {
       attack: {
         name: "圆圆拳",
@@ -72,8 +72,9 @@ export const characters = [
         active: 0.08,
         recovery: 0.27,
         projectileSpeed: 16,
-        radius: 0.34,
-        height: 2.24,
+        originX: 1.25,
+        radius: 0.22,
+        height: 2.65,
         knockback: 5,
         stun: 0.32,
         color: "#6be7ff",
@@ -166,7 +167,7 @@ export const characters = [
     maxHp: 100,
     maxEnergy: 100,
     speed: 7.3,
-    jump: 12.2,
+    jump: 12.4,
     moves: {
       attack: {
         name: "快乐拍击",
@@ -223,7 +224,7 @@ export const characters = [
         recovery: 0.34,
         originX: 0.08,
         height: 3.15,
-        angle: -0.2,
+        angle: -0.1,
         beamRadius: 0.16,
         knockback: 4.6,
         stun: 0.3,

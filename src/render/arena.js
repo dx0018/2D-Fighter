@@ -7,9 +7,11 @@ import { CombatEffects } from "./effects.js";
 import { ArenaCamera } from "./camera.js";
 import { drawFallback } from "./fallback.js";
 import { disposeTree, softShadow } from "./primitives.js";
+import { bakeStaticShadows } from "./static-shadows.js";
+import { RenderQuality } from "./quality.js";
 export { registerFighterModel };
 export class ArenaRenderer {
-  constructor(container, { map, characters, onError } = {}) {
+  constructor(container, { map, characters, onError, quality = "auto" } = {}) {
     this.container = container;
     this.map = map;
     this.characters = characters;
@@ -24,7 +26,14 @@ export class ArenaRenderer {
         antialias: true,
         powerPreference: "high-performance",
       });
-      this.renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 1.5));
+      const gl = this.renderer.getContext(),
+        debug = gl.getExtension("WEBGL_debug_renderer_info");
+      const software =
+        debug &&
+        /swiftshader|llvmpipe|software/i.test(
+          gl.getParameter(debug.UNMASKED_RENDERER_WEBGL),
+        );
+      this.quality = new RenderQuality(quality, !!software);
       this.renderer.shadowMap.enabled = true;
       this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
       this.renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -76,6 +85,13 @@ export class ArenaRenderer {
       rim.position.set(6, 8, -9);
       this.scene.add(rim);
       this.stage = buildStage(this.scene, map);
+      this.staticShadows = bakeStaticShadows(
+        this.renderer,
+        this.scene,
+        this.sun,
+        map,
+      );
+      this.applyQuality();
       this.fighters = characters.map((c) => {
         const f = makeFighter(c);
         this.scene.add(f.root);
@@ -116,6 +132,32 @@ export class ArenaRenderer {
     } else this.renderer.setSize(this.width, this.height, false);
     this.canvas.style.width = "100%";
     this.canvas.style.height = "100%";
+    this.needsRender = true;
+  }
+  applyQuality() {
+    if (this.fallback || !this.quality) return;
+    const p = this.quality.profile;
+    this.renderer.setPixelRatio(Math.min(devicePixelRatio || 1, p.pixelRatio));
+    this.sun.castShadow = p.shadows;
+    if (this.sun.shadow.map && this.sun.shadow.map.width !== p.shadowSize) {
+      this.sun.shadow.map.dispose();
+      this.sun.shadow.map = null;
+    }
+    this.sun.shadow.mapSize.set(p.shadowSize, p.shadowSize);
+    this.needsRender = true;
+  }
+  setQuality(mode) {
+    if (this.quality) {
+      this.quality.setMode(mode);
+      this.applyQuality();
+      this.resize();
+    }
+  }
+  sampleFrame(seconds) {
+    if (this.quality?.sample(seconds)) {
+      this.applyQuality();
+      this.resize();
+    }
   }
   update(state, dt = 1 / 60) {
     if (this.disposed || !state) return;
@@ -138,6 +180,12 @@ export class ArenaRenderer {
     this.scene.fog.far = d + 110;
     this.sun.position.x = this.cameraCenter - 12;
     this.sun.target.position.set(this.cameraCenter, 0, 0);
+    const half = this.cameraWidth / 2 + 5;
+    this.sun.shadow.camera.left = -half;
+    this.sun.shadow.camera.right = half;
+    this.sun.shadow.camera.top = 15;
+    this.sun.shadow.camera.bottom = -15;
+    this.sun.shadow.camera.updateProjectionMatrix();
     state.fighters.forEach((f, i) => {
       animateFighter(this.fighters[i], f, dt, this.clock, i, state.hitstop);
       const s = this.shadows[i];
@@ -159,12 +207,16 @@ export class ArenaRenderer {
     this.stage.update(this.clock);
     this.fx.update(state, this.clock);
     this.renderer.render(this.scene, this.camera);
+    this.needsRender = false;
   }
   dispose() {
     if (this.disposed) return;
     this.disposed = true;
     this.observer?.disconnect();
     this.fx?.dispose();
+    this.staticShadows?.dispose();
+    this.sun?.shadow.dispose();
+    this.fighters?.forEach((f) => f.skeleton?.dispose());
     disposeTree(this.scene);
     this.environment?.dispose();
     this.renderer?.dispose();

@@ -11,6 +11,7 @@ import {
   surface,
   batchStatic,
   label,
+  batchRigid,
 } from "./primitives.js";
 function paving(theme) {
   const c = document.createElement("canvas");
@@ -395,6 +396,11 @@ function sky(scene, map) {
     [moon ? 2.6 : 4, moon ? 2.6 : 4, 0.6],
   );
   sun.castShadow = false;
+  g.traverse((o) => {
+    if (o.isMesh) o.castShadow = false;
+  });
+  scene.remove(g);
+  scene.add(batchStatic(g));
   return { dome };
 }
 export function buildStage(scene, map) {
@@ -594,28 +600,50 @@ export function buildStage(scene, map) {
     scene.add(pond);
   }
 
-  const motes = new THREE.Group();
-  scene.add(motes);
+  const positions = new Float32Array(22 * 3),
+    bases = [];
   for (let i = 0; i < 22; i++) {
-    const m = ball(
-      motes,
-      surface(theme === "moon" ? "#c7ffcc" : "#f3dfaa", {
-        emissive: theme === "moon" ? "#b7f6be" : "#f1d29a",
-        emissiveIntensity: theme === "moon" ? 1.8 : 0.4,
-      }),
-      [Math.sin(i * 24) * 35, 1.5 + (i % 7), -5 - (i % 13)],
-      [0.025, 0.025, 0.025],
-    );
-    m.castShadow = false;
-    m.userData.base = m.position.clone();
+    const base = [Math.sin(i * 24) * 35, 1.5 + (i % 7), -5 - (i % 13)];
+    bases.push(base);
+    positions.set(base, i * 3);
   }
+  const dot = document.createElement("canvas");
+  dot.width = dot.height = 32;
+  const ctx = dot.getContext("2d"),
+    gradient = ctx.createRadialGradient(16, 16, 1, 16, 16, 16);
+  gradient.addColorStop(0, "#fff");
+  gradient.addColorStop(0.3, "#fff9");
+  gradient.addColorStop(1, "#fff0");
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, 32, 32);
+  const moteGeometry = new THREE.BufferGeometry();
+  moteGeometry.setAttribute(
+    "position",
+    new THREE.BufferAttribute(positions, 3),
+  );
+  const motes = new THREE.Points(
+    moteGeometry,
+    new THREE.PointsMaterial({
+      color: theme === "moon" ? "#c7ffcc" : "#f3dfaa",
+      map: new THREE.CanvasTexture(dot),
+      size: 0.1,
+      transparent: true,
+      opacity: 0.65,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      toneMapped: false,
+    }),
+  );
+  scene.add(motes);
+
   return {
     update(time) {
       if (water) water.uniforms.time.value = time;
-      motes.children.forEach((m, i) => {
-        m.position.y = m.userData.base.y + Math.sin(time * 0.6 + i) * 0.25;
-        m.position.x = m.userData.base.x + Math.sin(time * 0.3 + i) * 0.5;
+      bases.forEach((base, i) => {
+        positions[i * 3] = base[0] + Math.sin(time * 0.3 + i) * 0.5;
+        positions[i * 3 + 1] = base[1] + Math.sin(time * 0.6 + i) * 0.25;
       });
+      moteGeometry.attributes.position.needsUpdate = true;
     },
   };
 }
@@ -628,7 +656,8 @@ export function makeObject(data) {
     h = data.height || 1.2,
     wood = surface(data.color || "#aa7044", { roughness: 0.84 });
   if (data.type === "crate") {
-    roundBox(shape, wood, [0, h / 2, 0], [w, h, 0.85]);
+    const solid = roundBox(shape, wood, [0, h / 2, 0], [w, h, 0.85]);
+    solid.userData.silhouette = true;
     const brace = surface("#d7aa73");
     for (let i = 0; i < 4; i++)
       box(
@@ -670,5 +699,6 @@ export function makeObject(data) {
       ring(pivot, post, 0.045, 0.012, [x, 0.3, 0]);
     shape.userData.signPivot = pivot;
   }
+  batchRigid(shape, [shape.userData.signPivot].filter(Boolean));
   return { root, shape };
 }
