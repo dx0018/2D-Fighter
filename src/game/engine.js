@@ -515,18 +515,19 @@ export class Game {
       const overlaps = (x, width, y, height) =>
         segmentHitsBox(oldX, oldY, p.x, p.y, p.radius, x, width, y, height);
       const target = this.state.fighters[1 - p.owner];
-      if (
-        target.invulnerable <= EPS &&
-        overlaps(target.x, 1, target.y, fighterHeight(target))
-      ) {
-        contacts.push({
-          attacker: this.state.fighters[p.owner],
-          target,
-          move: p.move,
-          direction: p.direction,
-        });
+      if (overlaps(target.x, 1, target.y, fighterHeight(target))) {
+        // A projectile that crosses an invulnerable fighter is dodged. Consume
+        // it at the crossing so it cannot linger inside and hit when invuln ends.
         p.alive = false;
+        if (target.invulnerable <= EPS)
+          contacts.push({
+            attacker: this.state.fighters[p.owner],
+            target,
+            move: p.move,
+            direction: p.direction,
+          });
       }
+      if (!p.alive) continue;
       for (const object of this.state.objects) {
         if (
           !object.destroyed &&

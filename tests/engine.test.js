@@ -83,16 +83,16 @@ test("movement respects both arena bounds and jump returns to the ground", () =>
   assert.equal(game.state.fighters[0].y, 0);
   assert.equal(game.state.fighters[0].grounded, true);
 });
-test("air cannon hits at distance and ducking avoids its high hitbox", () => {
+test("chest-height air cannon hits a crouching fighter and jump timing avoids it", () => {
   const game = create();
   ready(game);
-  advance(game, 1, [{ skill: true }, {}]);
+  advance(game, 1, [{ skill: true }, { crouch: true }]);
   assert.equal(game.state.fighters[1].hp, 85);
   game.reset();
   ready(game);
-  advance(game, 1, [{ skill: true }, { crouch: true }]);
+  advance(game, 0.1, [{}, { jump: true }]);
+  advance(game, 0.65, [{ skill: true }, {}]);
   assert.equal(game.state.fighters[1].hp, 100);
-  assert.equal(game.state.fighters[1].crouching, true);
 });
 test("skill requires energy and cooldown, while energy regenerates", () => {
   const game = create();
@@ -283,6 +283,33 @@ test("a real hit freezes combat briefly without repeating damage or freezing eff
   advance(game, 0.2);
   assert.equal(game.state.hitstop, 0);
   assert.equal(b.hp, health);
+});
+
+test("a projectile is consumed when dodged through a short invulnerability window", () => {
+  const game = create();
+  ready(game);
+  const target = game.state.fighters[1];
+  target.x = 0;
+  target.invulnerable = 0.02;
+  game.state.projectiles.push({
+    id: game.nextId++,
+    x: -0.65,
+    y: 1.75,
+    vx: 16,
+    vy: 0,
+    direction: 1,
+    owner: 0,
+    radius: 0.22,
+    speed: 16,
+    distance: 0,
+    move: { range: 18, damage: 15, cost: 24, kind: "projectile" },
+    hit: new Set(),
+    alive: true,
+  });
+
+  advance(game, 0.15);
+  assert.equal(target.hp, 100);
+  assert.equal(game.state.projectiles.length, 0);
 });
 test("a tapped move during hitstop is buffered once and expires when unusable", () => {
   const game = create();

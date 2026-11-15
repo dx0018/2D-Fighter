@@ -71,10 +71,10 @@ test("a crouching skill preserves the low hurtbox throughout its cast after dire
   tick(g, 0.6);
   assert.equal(f.crouching, false);
 });
-test("high cannon misses crouching opponents while the low variant hits them", () => {
-  const high = match();
-  tick(high, 0.9, [{ skill: true }, { crouch: true }]);
-  assert.equal(high.state.fighters[1].hp, 100);
+test("chest-height cannon reaches crouching opponents while the ground shot stays low", () => {
+  const mid = match();
+  tick(mid, 0.9, [{ skill: true }, { crouch: true }]);
+  assert.equal(mid.state.fighters[1].hp, 85);
   const low = match();
   tick(low, 0.9, [{ crouch: true, skill: true }, { crouch: true }]);
   assert.equal(low.state.fighters[1].hp, 88);
@@ -174,7 +174,7 @@ test("swept diagonal collision catches crossing rays and rejects space outside t
   assert.equal(segmentHitsBox(0, 4, 0, -1, 0.1, 0, 1, 0, 2), true);
   assert.equal(segmentHitsBox(3, 4, 3, -1, 0.1, 0, 1, 0, 2), false);
 });
-test("both characters can time a normal jump over a high cannon shot", () => {
+test("both characters can time a normal jump over the chest-height cannon shot", () => {
   for (const defender of characters) {
     const g = new Game({ characters: [characters[0], defender], map: maps[0] });
     g.state.phase = "fighting";

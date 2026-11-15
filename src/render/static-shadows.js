@@ -32,6 +32,7 @@ export function bakeStaticShadows(renderer, scene, light, map) {
     pcStaticTexel: {
       value: new THREE.Vector2(1 / target.width, 1 / target.height),
     },
+    pcStaticSamples: { value: 4 },
   };
   const materials = new Set();
   scene.traverse((o) => {
@@ -55,12 +56,12 @@ export function bakeStaticShadows(renderer, scene, light, map) {
         "#include <worldpos_vertex>\nvec3 pcWorld=(modelMatrix*vec4(transformed,1.0)).xyz+normalize(mat3(modelMatrix)*objectNormal)*.08;pcStaticCoord=pcStaticMatrix*vec4(pcWorld,1.0);",
       );
       shader.fragmentShader =
-        "uniform sampler2D pcStaticMap; uniform vec2 pcStaticTexel; varying vec4 pcStaticCoord;\n" +
+        "uniform sampler2D pcStaticMap; uniform vec2 pcStaticTexel; uniform float pcStaticSamples; varying vec4 pcStaticCoord;\n" +
         shader.fragmentShader;
       shader.fragmentShader = shader.fragmentShader.replace(
         "#include <shadowmap_pars_fragment>",
         `#include <shadowmap_pars_fragment>
-float pcSceneryShadow(){vec3 p=pcStaticCoord.xyz/pcStaticCoord.w;if(p.z>1.||p.x<0.||p.x>1.||p.y<0.||p.y>1.)return 1.;float d=p.z-.0011;float v=0.;
+float pcSceneryShadow(){vec3 p=pcStaticCoord.xyz/pcStaticCoord.w;if(p.z>1.||p.x<0.||p.x>1.||p.y<0.||p.y>1.)return 1.;float d=p.z-.0011;if(pcStaticSamples<1.5)return step(d,unpackRGBAToDepth(texture2D(pcStaticMap,p.xy)));float v=0.;
 v+=step(d,unpackRGBAToDepth(texture2D(pcStaticMap,p.xy+pcStaticTexel*vec2(-.65,-.65))));
 v+=step(d,unpackRGBAToDepth(texture2D(pcStaticMap,p.xy+pcStaticTexel*vec2(.65,-.65))));
 v+=step(d,unpackRGBAToDepth(texture2D(pcStaticMap,p.xy+pcStaticTexel*vec2(-.65,.65))));
@@ -75,6 +76,9 @@ v+=step(d,unpackRGBAToDepth(texture2D(pcStaticMap,p.xy+pcStaticTexel*vec2(.65,.6
     mat.needsUpdate = true;
   }
   return {
+    setSamples(samples) {
+      uniforms.pcStaticSamples.value = samples;
+    },
     dispose() {
       target.dispose();
     },

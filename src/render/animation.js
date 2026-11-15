@@ -185,23 +185,31 @@ export function animateFighter(m, f, dt, clock, index = 0, hitstop = 0) {
         squash = 1 + 0.025 * power;
       }
     } else if (move.kind === "projectile" || move.kind === "beam") {
+      const handCannon = style === "cannon" || style === "retreat-cannon",
+        divingCannon = style === "air-cannon";
       hands[front] = [
         face *
-          (style === "cannon" || style === "retreat-cannon"
-            ? 0.82
-            : 0.9 + (released ? 0.17 : 0.12 * w)),
+          (handCannon
+            ? 1.0
+            : divingCannon
+              ? 0.98
+              : 0.9 + (released ? 0.17 : 0.12 * w)),
         style === "low-cannon"
           ? 0.3
-          : style === "air-cannon"
-            ? 1.3
-            : move.kind === "beam"
-              ? 1.45
-              : 2.45,
+          : divingCannon
+            ? 1.02
+            : handCannon
+              ? 1.56
+              : move.kind === "beam"
+                ? 1.45
+                : 2.45,
         move.kind === "beam"
           ? 0.39
-          : style === "cannon" || style === "retreat-cannon"
-            ? -0.25
-            : -0.1,
+          : handCannon
+            ? 0
+            : divingCannon
+              ? -0.08
+              : -0.1,
       ];
       hands[back] = [-face * 0.45, 1.15, 0.67];
       lean = face * (released ? 0.13 * power : -0.07 * w);
@@ -424,7 +432,9 @@ export function animateFighter(m, f, dt, clock, index = 0, hitstop = 0) {
     const hand = m.arms[face > 0 ? 1 : 0].hand;
     if (m.cannon.parent !== hand) hand.add(m.cannon);
     m.cannon.rotation.y = face < 0 ? Math.PI : 0;
-    m.cannon.rotation.z = (cast?.move.angle || 0) * face;
+    // The barrel is mirrored with rotation.y for left-facing fighters. Its
+    // vertical angle remains a world-space rise/fall and must not be mirrored.
+    m.cannon.rotation.z = cast?.move.angle || 0;
     m.cannon.position.y = cast?.move.kind === "beam" ? -0.1 : 0.18;
   }
   const flash = f.flash > 0 ? Math.min(0.7, f.flash * 5) : 0;

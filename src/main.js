@@ -9,6 +9,7 @@ import { contextLabels, selectMove, moveList } from "./game/moves.js";
 import { Input } from "./game/input.js";
 import { GameAudio } from "./game/audio.js";
 import { ArenaRenderer } from "./render/arena.js";
+import { FramePacer } from "./render/frame-pacer.js";
 import { createPortrait, mapArt } from "./render/portraits.js";
 
 const app = document.querySelector("#app");
@@ -24,7 +25,10 @@ let page = "home",
   helpOpen = false,
   finishedHandled = false,
   homeTick = 0,
+  hudElapsed = 0,
+  renderElapsed = 0,
   last = performance.now();
+const renderPacer = new FramePacer(60);
 const input = new Input(() => togglePause());
 const esc = (s) =>
   String(s).replace(
@@ -79,6 +83,9 @@ function steps(active) {
 function teardown() {
   hudNodes.clear();
   homeTick = 0;
+  hudElapsed = 0;
+  renderElapsed = 0;
+  renderPacer.reset();
   arena?.dispose();
   arena = null;
   preview = null;
@@ -172,7 +179,7 @@ function skillGuide(cs) {
     )
     .join(
       "",
-    )}</div><p class="move-guide-note">蹲下可躲高位空气炮；跳跃可越过贴地弹和滑踢。招式落空后有收招时间，留意对手的动作再反击。</p></details>`;
+    )}</div><p class="move-guide-note">胸口高度空气炮可用跳跃避开；蹲下可躲天线光线，跳跃也能越过贴地弹和扫腿。招式落空后有收招时间，留意对手的动作再反击。</p></details>`;
 }
 function touchPad(p) {
   return `<div class="touch-pad"><b class="p${p + 1}">P${p + 1}</b>${[
@@ -525,9 +532,21 @@ function frame(now) {
   try {
     if (page === "fight" && game) {
       game.step(dt, input.read());
-      updateHud(dt);
-      if (!game.paused || arena?.needsRender)
-        arena?.update(game.state, game.paused ? 0 : dt);
+      if (game.paused) {
+        hudElapsed = 0;
+        renderElapsed = 0;
+      } else {
+        hudElapsed += dt;
+        renderElapsed += dt;
+      }
+      const draw = renderPacer.ready(dt, !!arena?.needsRender);
+      if (draw) {
+        updateHud(hudElapsed);
+        hudElapsed = 0;
+      }
+      if ((!game.paused && draw) || arena?.needsRender)
+        arena?.update(game.state, game.paused ? 0 : renderElapsed);
+      if (draw || arena?.needsRender) renderElapsed = 0;
       if (!game.paused) arena?.sampleFrame(elapsed);
     } else if (preview && arena) {
       homeTick += dt;

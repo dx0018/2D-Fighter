@@ -15,6 +15,7 @@ export class RenderQuality {
       level: low ? "performance" : high ? "high" : "balanced",
       pixelRatio: low ? 0.75 : high ? 1.5 : 1.25,
       shadows: !low,
+      shadowSamples: low ? 1 : 4,
       shadowSize: high ? 1024 : 512,
     };
   }

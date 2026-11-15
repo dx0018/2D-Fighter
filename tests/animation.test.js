@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import * as THREE from "three";
 import { makeFighter } from "../src/render/fighters.js";
 import { animateFighter } from "../src/render/animation.js";
+import { selectMove } from "../src/game/moves.js";
 import { characters } from "../src/config/content.js";
 import { disposeTree } from "../src/render/primitives.js";
 const state = () => ({
@@ -125,4 +126,38 @@ test("reversing movement does not teleport an already planted support foot", () 
   assert.ok(after.distanceTo(planted) < 0.035);
   disposeTree(m.root);
   m.skeleton.dispose();
+});
+
+test("Doraemon's chest and diving cannon poses align with the shot in both directions", () => {
+  for (const context of ["neutral", "air"])
+    for (const facing of [1, -1]) {
+      const m = makeFighter(characters[0]),
+        f = state(),
+        move = selectMove(characters[0], "skill", context);
+      f.facing = facing;
+      f.grounded = context !== "air";
+      f.y = context === "air" ? 2 : 0;
+      f.action = "skill";
+      f.currentMove = {
+        key: "skill",
+        move,
+        elapsed: move.windup + 0.02,
+        facing,
+      };
+      for (let i = 0; i < 90; i++)
+        animateFighter(m, f, 1 / 60, i / 60, 0);
+      m.root.updateMatrixWorld(true);
+
+      const muzzle = m.cannon.getWorldPosition(new THREE.Vector3()),
+        direction = new THREE.Vector3(1, 0, 0).transformDirection(
+          m.cannon.matrixWorld,
+        ),
+        expectedY = f.y + (context === "air" ? 1.2 : 1.75);
+      assert.ok(Math.abs(muzzle.y - expectedY) < 0.16, `${context} muzzle Y`);
+      assert.ok(direction.x * facing > 0, `${context} aims toward the opponent`);
+      if (context === "air")
+        assert.ok(direction.y < 0, "the diving cannon points down on both sides");
+      m.skeleton.dispose();
+      disposeTree(m.root);
+    }
 });

@@ -138,6 +138,7 @@ export class ArenaRenderer {
     if (this.fallback || !this.quality) return;
     const p = this.quality.profile;
     this.renderer.setPixelRatio(Math.min(devicePixelRatio || 1, p.pixelRatio));
+    this.staticShadows?.setSamples(p.shadowSamples);
     this.sun.castShadow = p.shadows;
     if (this.sun.shadow.map && this.sun.shadow.map.width !== p.shadowSize) {
       this.sun.shadow.map.dispose();
