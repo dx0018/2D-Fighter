@@ -1,5 +1,17 @@
 // Chinese source copy is the lookup key. Add translations here when adding content.
 export const english = {
+  对战电脑: "Play vs CPU",
+  "P2 控制": "P2 controller",
+  本地玩家: "Local player",
+  电脑对手: "Computer opponent",
+  "P2 由电脑自动操作，你也可以为它选择角色。": "The CPU controls P2. You can choose its character.",
+  "两位玩家共用一台键盘。": "Two players share one keyboard.",
+  "选择你的角色与电脑对手，确认 P1 后即可继续。": "Choose your fighter and CPU opponent, then confirm P1 to continue.",
+  电脑已就绪: "CPU ready",
+  "电脑自动移动、躲避与出招": "CPU moves, dodges and attacks automatically",
+  电脑自动操作: "Controlled by CPU",
+  "P2 · 电脑": "P2 · CPU",
+  "再挑战一次电脑，试试不同的招式吧。": "Challenge the CPU again and try different moves.",
   "小小英雄，无限可能": "Little heroes. Endless possibilities.",
   模型来源与授权: "Model credits & licenses",
   关闭模型授权: "Close model credits",

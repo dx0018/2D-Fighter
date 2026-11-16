@@ -4,6 +4,7 @@ import "@fontsource/barlow-condensed/latin-700.css";
 import "@fontsource/barlow-condensed/latin-800.css";
 import { characters, maps } from "./config/content.js";
 import { Game } from "./game/engine.js";
+import { ComputerPlayer } from "./game/computer.js";
 import { frameDelta } from "./game/frame-time.js";
 import { contextLabels, selectMove, moveList } from "./game/moves.js";
 import { Input } from "./game/input.js";
@@ -15,6 +16,7 @@ import { getLanguage, setLanguage, localize, translate } from "./i18n/index.js";
 
 const app = document.querySelector("#app");
 const audio = new GameAudio();
+let opponent = "human", computer = null;
 let page = "home",
   selected = [0, 1],
   ready = [false, false],
@@ -86,7 +88,7 @@ function renderPage(markup) {
 }
 
 function header() {
-  return `<header class="site-header"><button class="brand" data-action="home" aria-label="口袋对决主页"><span class="brand-mark">p<span>c</span><i></i></span><span>POCKET<span>CLASH<span class="brand-dot">.</span></span></span></button><span class="header-caption">小小英雄，无限可能</span><nav><button class="text-button" data-action="help" aria-label="操作说明"><span class="key-symbol">?</span><span>操作说明</span></button>${qualityControl()}${languageControl()}<button class="icon-button sound" data-action="sound" aria-label="${audio.enabled ? "关闭" : "开启"}音效" aria-pressed="${audio.enabled}">${audio.enabled ? "♫" : "♩"}</button><span class="local-pill"><i></i> 本地双人</span></nav></header>`;
+  return `<header class="site-header"><button class="brand" data-action="home" aria-label="口袋对决主页"><span class="brand-mark">p<span>c</span><i></i></span><span>POCKET<span>CLASH<span class="brand-dot">.</span></span></span></button><span class="header-caption">小小英雄，无限可能</span><nav><button class="text-button" data-action="help" aria-label="操作说明"><span class="key-symbol">?</span><span>操作说明</span></button>${qualityControl()}${languageControl()}<button class="icon-button sound" data-action="sound" aria-label="${audio.enabled ? "关闭" : "开启"}音效" aria-pressed="${audio.enabled}">${audio.enabled ? "♫" : "♩"}</button><span class="local-pill"><i></i> ${opponent === "computer" ? "对战电脑" : "本地双人"}</span></nav></header>`;
 }
 function footer() {
   return `<footer class="site-footer"><span>POCKET CLASH <b>© 2026</b></span><span>两位玩家 · 一台键盘 · 无数次再来一局</span><button class="footer-credits" data-action="credits">模型来源与授权</button><span class="footer-right">MADE FOR FRIENDLY RIVALRIES <i>✳</i></span></footer>`;
@@ -101,6 +103,7 @@ function teardown() {
   lastHudPhase = null;
   hudPacer.reset();
   previewPacer.reset();
+  computer = null;
   arena?.dispose();
   arena = null;
   preview = null;
@@ -115,7 +118,7 @@ function showHome() {
   page = "home";
   game = null;
   renderPage(
-    `${header()}<main class="home"><div class="hero-topline"><span><i></i> THE COUCH IS YOUR ARENA</span><span>VOL. 01 / 好朋友，来一场</span></div><div class="hero-grid"><section class="hero-copy"><div class="eyebrow"><span class="tiny-star">✳</span> 口袋对决 · 2.5D 格斗俱乐部</div><h1>小小英雄。<br><span>大大对决。</span><sup>✦</sup></h1><p>熟悉的伙伴，意想不到的对手。<br>和身边的朋友，共享一场热热闹闹的对决。</p><div class="hero-actions"><button class="button primary large" data-action="start">开始游戏 <span>↗</span></button><button class="button ghost" data-action="help">怎么玩 <span>→</span></button></div><div class="hero-notes"><span><b>${String(characters.length).padStart(2, "0")}</b> 位首发英雄</span><i></i><span><b>${String(maps.length).padStart(2, "0")}</b> 个冒险场地</span><i></i><span>无需下载，即刻开战</span></div></section><section class="hero-preview" aria-label="卡通对战场景预览"><div class="preview-top"><span><i></i> LIVE FROM THE NEIGHBORHOOD</span><span>01 — ${esc(maps[0].name)}</span></div><div id="home-arena" class="home-arena"></div><div class="hero-versus"><span><b class="p1">P1</b> 哆啦A梦</span><i>VS</i><span>天线宝宝 · 小波 <b class="p2">P2</b></span></div><span class="preview-sticker">READY,<br>SET, <em>PLAY!</em></span><div class="preview-bottom"><span>一场友好的较量</span><span>ROUND 01 <i>↗</i></span></div></section></div><section class="feature-strip"><article><span class="feature-number">01</span><div><h3>选你的快乐搭子</h3><p>经典伙伴，各有拿手绝活</p></div><span>↗</span></article><article><span class="feature-number">02</span><div><h3>把街角变成擂台</h3><p>木箱能打碎，招牌会摇晃</p></div><span>↗</span></article><article><span class="feature-number">03</span><div><h3>同屏开打，快乐加倍</h3><p>双人键盘，随时再来一局</p></div><span>↗</span></article></section></main>${footer()}`,
+    `${header()}<main class="home"><div class="hero-topline"><span><i></i> THE COUCH IS YOUR ARENA</span><span>VOL. 01 / 好朋友，来一场</span></div><div class="hero-grid"><section class="hero-copy"><div class="eyebrow"><span class="tiny-star">✳</span> 口袋对决 · 2.5D 格斗俱乐部</div><h1>小小英雄。<br><span>大大对决。</span><sup>✦</sup></h1><p>熟悉的伙伴，意想不到的对手。<br>和身边的朋友，共享一场热热闹闹的对决。</p><div class="hero-actions"><button class="button primary large" data-action="start">开始游戏 <span>↗</span></button><button class="button ghost" data-action="start-computer">对战电脑 <span>↗</span></button><button class="button ghost" data-action="help">怎么玩 <span>→</span></button></div><div class="hero-notes"><span><b>${String(characters.length).padStart(2, "0")}</b> 位首发英雄</span><i></i><span><b>${String(maps.length).padStart(2, "0")}</b> 个冒险场地</span><i></i><span>无需下载，即刻开战</span></div></section><section class="hero-preview" aria-label="卡通对战场景预览"><div class="preview-top"><span><i></i> LIVE FROM THE NEIGHBORHOOD</span><span>01 — ${esc(maps[0].name)}</span></div><div id="home-arena" class="home-arena"></div><div class="hero-versus"><span><b class="p1">P1</b> 哆啦A梦</span><i>VS</i><span>天线宝宝 · 小波 <b class="p2">P2</b></span></div><span class="preview-sticker">READY,<br>SET, <em>PLAY!</em></span><div class="preview-bottom"><span>一场友好的较量</span><span>ROUND 01 <i>↗</i></span></div></section></div><section class="feature-strip"><article><span class="feature-number">01</span><div><h3>选你的快乐搭子</h3><p>经典伙伴，各有拿手绝活</p></div><span>↗</span></article><article><span class="feature-number">02</span><div><h3>把街角变成擂台</h3><p>木箱能打碎，招牌会摇晃</p></div><span>↗</span></article><article><span class="feature-number">03</span><div><h3>同屏开打，快乐加倍</h3><p>双人键盘，随时再来一局</p></div><span>↗</span></article></section></main>${footer()}`,
   );
   try {
     preview = new Game({
@@ -138,14 +141,14 @@ function showCharacters(reset = false) {
   teardown();
   page = "characters";
   game = null;
-  if (reset) ready = [false, false];
+  if (reset) ready = [false, opponent === "computer"];
   renderPage(
-    `${header()}<main class="flow-main">${steps(0)}<div class="section-heading"><div><div class="eyebrow">CHOOSE YOUR FIGHTER</div><h1>今天，谁来出招<span>？</span></h1><p>为两位玩家选择角色，然后分别确认。也可以选择同一位英雄。</p></div><span class="section-counter">${String(characters.length).padStart(2, "0")} <small>FIGHTERS</small></span></div><div class="player-select-grid">${[
+    `${header()}<main class="flow-main">${steps(0)}<div class="section-heading"><div><div class="eyebrow">CHOOSE YOUR FIGHTER</div><h1>今天，谁来出招<span>？</span></h1><p>${opponent === "computer" ? "选择你的角色与电脑对手，确认 P1 后即可继续。" : "为两位玩家选择角色，然后分别确认。也可以选择同一位英雄。"}</p></div><span class="section-counter">${String(characters.length).padStart(2, "0")} <small>FIGHTERS</small></span></div><div class="opponent-choice"><label for="opponent-select">P2 控制</label><select id="opponent-select" data-setting="opponent"><option value="human" ${opponent === "human" ? "selected" : ""}>本地玩家</option><option value="computer" ${opponent === "computer" ? "selected" : ""}>电脑对手</option></select><span>${opponent === "computer" ? "P2 由电脑自动操作，你也可以为它选择角色。" : "两位玩家共用一台键盘。"}</span></div><div class="player-select-grid">${[
       0, 1,
     ]
       .map(
         (p) =>
-          `<section class="player-panel player-${p + 1}"><div class="player-panel-heading"><span class="player-label p${p + 1}">PLAYER 0${p + 1}</span><span class="status ${ready[p] ? "confirmed" : ""}">${ready[p] ? "✓ 已准备" : "选择你的英雄"}</span></div><div class="fighter-choices">${characters.map((c, i) => `<button class="fighter-card ${selected[p] === i ? "selected" : ""}" data-action="choose-character" data-player="${p}" data-index="${i}" aria-pressed="${selected[p] === i}" style="--fighter-color:${c.color}"><span class="fighter-no">${String(i + 1).padStart(2, "0")}</span><div class="portrait">${createPortrait(c)}</div><span class="fighter-caption"><b>${esc(c.name)}</b><small>${esc(c.englishName)}</small></span><span class="selection-check">${selected[p] === i ? "✓" : "＋"}</span></button>`).join("")}</div><div class="fighter-detail"><div><h3>${esc(characters[selected[p]].name)}</h3><span>${esc(characters[selected[p]].tagline)}</span></div><p>${esc(characters[selected[p]].description)}</p><div class="stat-row">${[
+          `<section class="player-panel player-${p + 1}"><div class="player-panel-heading"><span class="player-label p${p + 1}">PLAYER 0${p + 1}${p === 1 && opponent === "computer" ? " · CPU" : ""}</span><span class="status ${ready[p] ? "confirmed" : ""}">${ready[p] ? "✓ 已准备" : "选择你的英雄"}</span></div><div class="fighter-choices">${characters.map((c, i) => `<button class="fighter-card ${selected[p] === i ? "selected" : ""}" data-action="choose-character" data-player="${p}" data-index="${i}" aria-pressed="${selected[p] === i}" style="--fighter-color:${c.color}"><span class="fighter-no">${String(i + 1).padStart(2, "0")}</span><div class="portrait">${createPortrait(c)}</div><span class="fighter-caption"><b>${esc(c.name)}</b><small>${esc(c.englishName)}</small></span><span class="selection-check">${selected[p] === i ? "✓" : "＋"}</span></button>`).join("")}</div><div class="fighter-detail"><div><h3>${esc(characters[selected[p]].name)}</h3><span>${esc(characters[selected[p]].tagline)}</span></div><p>${esc(characters[selected[p]].description)}</p><div class="stat-row">${[
             ["power", "力量"],
             ["speed", "速度"],
             ["range", "射程"],
@@ -156,7 +159,7 @@ function showCharacters(reset = false) {
             )
             .join(
               "",
-            )}</div></div><button class="button ${ready[p] ? "ready-button" : "confirm-button"} full" data-action="ready" data-player="${p}">${ready[p] ? "✓ 准备完成 · 点击取消" : `确认 P${p + 1} 角色`} <span>${ready[p] ? "✓" : "→"}</span></button><div class="player-keys">${p === 0 ? "<kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd><span>移动</span><kbd>F</kbd><kbd>G</kbd><kbd>H</kbd><span>招式</span>" : "<kbd>↑</kbd><kbd>←</kbd><kbd>↓</kbd><kbd>→</kbd><span>移动</span><kbd>J</kbd><kbd>K</kbd><kbd>L</kbd><span>招式</span>"}</div></section>`,
+            )}</div></div><button class="button ${ready[p] ? "ready-button" : "confirm-button"} full" data-action="ready" data-player="${p}" ${p === 1 && opponent === "computer" ? "disabled" : ""}>${p === 1 && opponent === "computer" ? "电脑已就绪" : ready[p] ? "✓ 准备完成 · 点击取消" : `确认 P${p + 1} 角色`} <span>${ready[p] ? "✓" : "→"}</span></button><div class="player-keys">${p === 1 && opponent === "computer" ? "电脑自动移动、躲避与出招" : p === 0 ? "<kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd><span>移动</span><kbd>F</kbd><kbd>G</kbd><kbd>H</kbd><span>招式</span>" : "<kbd>↑</kbd><kbd>←</kbd><kbd>↓</kbd><kbd>→</kbd><span>移动</span><kbd>J</kbd><kbd>K</kbd><kbd>L</kbd><span>招式</span>"}</div></section>`,
       )
       .join(
         "",
@@ -178,10 +181,10 @@ function showMaps() {
   );
 }
 function hudPlayer(c, p) {
-  return `<div class="hud-player hud-p${p + 1}"><div class="hud-name"><span class="p${p + 1}">P${p + 1}</span><b>${esc(c.name)}</b><span id="hp-text-${p}">100 / 100</span></div><div class="health-track"><div id="hp-lag-${p}" class="health-lag"></div><div id="hp-${p}" class="health-fill"></div></div><div class="energy-row"><div class="energy-track"><div id="energy-${p}" class="energy-fill"></div></div><span id="energy-text-${p}">100 EP</span></div></div>`;
+  return `<div class="hud-player hud-p${p + 1}"><div class="hud-name"><span class="p${p + 1}">${p === 1 && opponent === "computer" ? "P2 · 电脑" : `P${p + 1}`}</span><b>${esc(c.name)}</b><span id="hp-text-${p}">100 / 100</span></div><div class="health-track"><div id="hp-lag-${p}" class="health-lag"></div><div id="hp-${p}" class="health-fill"></div></div><div class="energy-row"><div class="energy-track"><div id="energy-${p}" class="energy-fill"></div></div><span id="energy-text-${p}">100 EP</span></div></div>`;
 }
 function skillTray(c, p) {
-  return `<div class="skill-tray p${p + 1}"><span class="tray-player">P${p + 1}</span>${["attack", "skill", "ultimate"].map((k, i) => `<div class="skill-slot" id="slot-${p}-${k}"><kbd>${(p ? ["J", "K", "L"] : ["F", "G", "H"])[i]}</kbd><span><b id="move-name-${p}-${k}">${esc(c.moves[k].name)}</b><small id="cooldown-${p}-${k}">${c.moves[k].cost || 0} EP</small></span><i class="cooldown-cover" id="cover-${p}-${k}"></i></div>`).join("")}</div>`;
+  return `<div class="skill-tray p${p + 1}"><span class="tray-player">P${p + 1}</span>${["attack", "skill", "ultimate"].map((k, i) => `<div class="skill-slot" id="slot-${p}-${k}"><kbd>${p === 1 && opponent === "computer" ? "CPU" : (p ? ["J", "K", "L"] : ["F", "G", "H"])[i]}</kbd><span><b id="move-name-${p}-${k}">${esc(c.moves[k].name)}</b><small id="cooldown-${p}-${k}">${c.moves[k].cost || 0} EP</small></span><i class="cooldown-cover" id="cover-${p}-${k}"></i></div>`).join("")}</div>`;
 }
 function skillGuide(cs) {
   return `<details class="move-guide"><summary>方向招式表 <span>G / K 随方向和姿态变化</span></summary><p class="move-guide-note">前＝朝敌人移动，后＝远离敌人，两人换边后会自动对应。空中优先于下蹲与方向；跳跃＋技能可同时按。所有方向技能共用冷却，大招仍是独立的 H / L。</p><div class="move-guide-grid">${cs
@@ -203,6 +206,7 @@ function skillGuide(cs) {
     )}</div><p class="move-guide-note">胸口高度空气炮可用跳跃避开；蹲下可躲天线光线，跳跃也能越过贴地弹和扫腿。招式落空后有收招时间，留意对手的动作再反击。</p></details>`;
 }
 function touchPad(p) {
+  if (p === 1 && opponent === "computer") return "";
   return `<div class="touch-pad"><b class="p${p + 1}">P${p + 1}</b>${[
     ["left", "←"],
     ["jump", "↑"],
@@ -225,8 +229,9 @@ function startFight() {
   const cs = getChars(),
     map = maps[selectedMap];
   game = new Game({ characters: cs, map, onEvent: (e) => audio.play(e) });
+  computer = opponent === "computer" ? new ComputerPlayer() : null;
   renderPage(
-    `${header()}<main class="battle-main"><div class="battle-heading"><span><i></i> LIVE MATCH <b>${esc(map.name)}</b></span><div><button class="text-button" data-action="help">? 操作</button><button class="text-button" data-action="fullscreen">⛶ 全屏</button><button class="button compact" data-action="pause">Ⅱ 暂停 <kbd>ESC</kbd></button></div></div><section class="battle-shell" id="battle-shell" aria-label="双人格斗场"><div id="battle-arena" class="battle-arena"></div><div class="battle-hud">${hudPlayer(cs[0], 0)}<div class="round-timer"><small>ROUND 01</small><b id="timer">99</b><span>ONE GOOD FIGHT</span></div>${hudPlayer(cs[1], 1)}</div><div id="impact-vignette" class="impact-vignette"></div><div class="combat-callouts">${[0, 1].map((p) => `<div id="super-${p}" class="super-callout super-p${p + 1}"><small>PLAYER 0${p + 1} · ULTIMATE</small><b></b></div><div id="combo-${p}" class="combo-callout combo-p${p + 1}"><b></b><small></small></div>`).join("")}</div><div class="battle-overlay" id="battle-overlay" aria-live="polite"></div><div class="arena-location"><span>STAGE 0${selectedMap + 1}</span><b>${esc(map.englishName)}</b></div><div id="feedback" class="battle-feedback" aria-live="polite"></div></section><div class="battle-bottom">${skillTray(cs[0], 0)}<span class="battle-center-label">POCKET<br><b>CLASH.</b></span>${skillTray(cs[1], 1)}</div><div class="battle-controls-note"><span><b class="p1">P1</b> WASD 移动 / 跳跃 / 蹲下</span><span>靠近对手出招 · 命中回复能量 · 大招消耗 70 EP</span><span><b class="p2">P2</b> 方向键 移动 / 跳跃 / 蹲下</span></div><details class="touch-controls"><summary>屏幕操作面板 <span>适合触屏体验；双人推荐键盘</span></summary>${touchPad(0)}${touchPad(1)}</details></main>${footer()}`,
+    `${header()}<main class="battle-main"><div class="battle-heading"><span><i></i> LIVE MATCH <b>${esc(map.name)}</b></span><div><button class="text-button" data-action="help">? 操作</button><button class="text-button" data-action="fullscreen">⛶ 全屏</button><button class="button compact" data-action="pause">Ⅱ 暂停 <kbd>ESC</kbd></button></div></div><section class="battle-shell" id="battle-shell" aria-label="双人格斗场"><div id="battle-arena" class="battle-arena"></div><div class="battle-hud">${hudPlayer(cs[0], 0)}<div class="round-timer"><small>ROUND 01</small><b id="timer">99</b><span>ONE GOOD FIGHT</span></div>${hudPlayer(cs[1], 1)}</div><div id="impact-vignette" class="impact-vignette"></div><div class="combat-callouts">${[0, 1].map((p) => `<div id="super-${p}" class="super-callout super-p${p + 1}"><small>PLAYER 0${p + 1} · ULTIMATE</small><b></b></div><div id="combo-${p}" class="combo-callout combo-p${p + 1}"><b></b><small></small></div>`).join("")}</div><div class="battle-overlay" id="battle-overlay" aria-live="polite"></div><div class="arena-location"><span>STAGE 0${selectedMap + 1}</span><b>${esc(map.englishName)}</b></div><div id="feedback" class="battle-feedback" aria-live="polite"></div></section><div class="battle-bottom">${skillTray(cs[0], 0)}<span class="battle-center-label">POCKET<br><b>CLASH.</b></span>${skillTray(cs[1], 1)}</div><div class="battle-controls-note"><span><b class="p1">P1</b> WASD 移动 / 跳跃 / 蹲下</span><span>靠近对手出招 · 命中回复能量 · 大招消耗 70 EP</span><span><b class="p2">P2</b> ${opponent === "computer" ? "电脑自动操作" : "方向键 移动 / 跳跃 / 蹲下"}</span></div><details class="touch-controls"><summary>屏幕操作面板 <span>适合触屏体验；双人推荐键盘</span></summary>${touchPad(0)}${touchPad(1)}</details></main>${footer()}`,
   );
   try {
     arena = new ArenaRenderer(document.querySelector("#battle-arena"), {
@@ -355,7 +360,7 @@ function showResults() {
     draw = winner === "draw" || winner === null;
   const c = draw ? null : getChars()[winner];
   document.querySelector("#battle-overlay").innerHTML =
-    `<div class="result-card"><div class="eyebrow">${draw ? "A MATCH TO REMEMBER" : "THAT WAS A GOOD FIGHT"}</div><h2>${draw ? "势均力敌！" : `P${winner + 1} 获胜！`}</h2>${c ? `<div class="result-portrait">${createPortrait(c)}</div><h3>${esc(c.name)}</h3>` : '<div class="draw-symbol">VS</div>'}<p>${draw ? "这次不分高下，再来一场？" : "漂亮的一战，和朋友再切磋一回吧。"}</p><div class="result-summary">${getChars()
+    `<div class="result-card"><div class="eyebrow">${draw ? "A MATCH TO REMEMBER" : "THAT WAS A GOOD FIGHT"}</div><h2>${draw ? "势均力敌！" : `P${winner + 1} 获胜！`}</h2>${c ? `<div class="result-portrait">${createPortrait(c)}</div><h3>${esc(c.name)}</h3>` : '<div class="draw-symbol">VS</div>'}<p>${draw ? "这次不分高下，再来一场？" : opponent === "computer" ? "再挑战一次电脑，试试不同的招式吧。" : "漂亮的一战，和朋友再切磋一回吧。"}</p><div class="result-summary">${getChars()
       .map(
         (c, p) =>
           `<span><b class="p${p + 1}">P${p + 1}</b> ${esc(c.name)} <small>${Math.ceil(game.state.fighters[p].hp)} HP</small></span>`,
@@ -457,6 +462,12 @@ app.addEventListener("change", (event) => {
     event.target.blur();
     return;
   }
+  if (event.target.dataset.setting === "opponent" && page === "characters") {
+    opponent = event.target.value === "computer" ? "computer" : "human";
+    ready[1] = opponent === "computer";
+    showCharacters();
+    return;
+  }
   if (event.target.dataset.setting !== "quality") return;
   graphicsMode = event.target.value;
   try {
@@ -480,6 +491,11 @@ function handleClick(e) {
       showHome();
       break;
     case "start":
+      opponent = "human";
+      showCharacters(true);
+      break;
+    case "start-computer":
+      opponent = "computer";
       showCharacters(true);
       break;
     case "help":
@@ -503,10 +519,11 @@ function handleClick(e) {
       break;
     case "choose-character":
       selected[p] = i;
-      ready[p] = false;
+      ready[p] = p === 1 && opponent === "computer";
       showCharacters();
       break;
     case "ready":
+      if (p === 1 && opponent === "computer") break;
       ready[p] = !ready[p];
       showCharacters();
       break;
@@ -599,7 +616,9 @@ function frame(now) {
   last = now;
   try {
     if (page === "fight" && game) {
-      game.step(dt, input.read());
+      const controls = input.read();
+      if (computer) controls[1] = computer.read(game, dt);
+      game.step(dt, controls);
       if (game.paused) {
         hudElapsed = 0;
       } else {
