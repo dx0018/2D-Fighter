@@ -19,6 +19,7 @@ try {
     const { RoomEnvironment } =
       await import("/node_modules/three/examples/jsm/environments/RoomEnvironment.js");
     const { makeFighter } = await import("/src/render/fighters.js"),
+      { loadFighterModel } = await import("/src/render/model-loader.js"),
       { animateFighter } = await import("/src/render/animation.js"),
       { softShadow, disposeTree } = await import("/src/render/primitives.js"),
       { characters, maps } = await import("/src/config/content.js"),
@@ -53,13 +54,13 @@ try {
         env = gen.fromScene(room, 0.05);
       scene.environment = env.texture;
       scene.environmentIntensity = 0.3;
-      const m = makeFighter(c);
+      const m = (await loadFighterModel(c).catch(() => null)) || makeFighter(c);
       scene.add(m.root, softShadow());
       const state = {
         character: c,
         x: 0,
         y: 0,
-        facing: i === 0 ? 1 : -1,
+        facing: 0,
         grounded: true,
         action: "idle",
         actionTime: 0,
@@ -71,6 +72,7 @@ try {
         name: c.id,
         data: r.domElement.toDataURL("image/webp", 0.94).split(",")[1],
       });
+      m.root.traverse((node) => node.skeleton?.dispose());
       disposeTree(scene);
       env.dispose();
       room.dispose();

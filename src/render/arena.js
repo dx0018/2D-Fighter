@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { makeFighter, registerFighterModel } from "./fighters.js";
+import { loadFighterModel } from "./model-loader.js";
 import { animateFighter } from "./animation.js";
 import { buildStage, makeObject } from "./stages.js";
 import { CombatEffects } from "./effects.js";
@@ -99,6 +100,29 @@ export class ArenaRenderer {
         this.scene.add(f.root);
         return f;
       });
+      this.ready = Promise.all(
+        characters.map(async (character, index) => {
+          try {
+            const loaded = await loadFighterModel(character);
+            if (!loaded) return;
+            if (this.disposed) {
+              loaded.root.traverse((node) => node.skeleton?.dispose());
+              disposeTree(loaded.root);
+              return;
+            }
+            const previous = this.fighters[index];
+            this.scene.remove(previous.root);
+            previous.skeleton?.dispose();
+            previous.root.traverse((node) => node.skeleton?.dispose());
+            disposeTree(previous.root);
+            this.fighters[index] = loaded;
+            this.scene.add(loaded.root);
+            this.needsRender = true;
+          } catch (error) {
+            console.warn(`Using the built-in ${character.id} model:`, error);
+          }
+        }),
+      );
       this.shadows = characters.map(() => {
         const s = softShadow();
         this.scene.add(s);
@@ -219,7 +243,10 @@ export class ArenaRenderer {
     this.fx?.dispose();
     this.staticShadows?.dispose();
     this.sun?.shadow.dispose();
-    this.fighters?.forEach((f) => f.skeleton?.dispose());
+    this.fighters?.forEach((f) => {
+      f.skeleton?.dispose();
+      f.root.traverse((node) => node.skeleton?.dispose());
+    });
     disposeTree(this.scene);
     this.environment?.dispose();
     this.renderer?.dispose();

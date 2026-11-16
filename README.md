@@ -2,7 +2,7 @@
 
 一款可以在同一台电脑上用键盘对战的网页 2.5D 格斗游戏。包含主页、双人选人、选场地、正式对战、胜负结算与再战。现有角色为哆啦A梦、天线宝宝小波与漩涡鸣人，可同角色对战；三个场地分别是口袋街角、落日天台和月光花园。
 
-仓库起初没有可访问的旧游戏代码或美术资源，因此本版从零重建。角色、场景和特效采用 Three.js 程序化卡通 3D，角色关节动画、物理材质与透视镜头均在浏览器实时渲染；立绘与地图预览由同一套模型离线渲染成 WebP，缺失时回退为 SVG，无需外部模型或图片服务。浏览器无法创建 WebGL 时自动使用 Canvas 兼容画面，战斗逻辑继续工作。
+当前角色使用本地打包的 GLB 美术模型：鸣人和小波沿用创作者模型的骨骼与动作，哆啦A梦经重新绑定骨架以适配游戏招式。比例、手部特效、互动与战斗判定在浏览器中适配；模型无法加载时保留内置卡通模型，WebGL 不可用时继续使用 Canvas 兼容战斗画面。选人立绘由同一批模型生成。
 
 ## 启动
 
@@ -144,7 +144,11 @@ tests/
 
 `Game` 不依赖 DOM 或渲染器，通过 `step(dt, inputs)` 推进状态，渲染器读取 `game.state`。输入只在对战阶段启用，倒数、暂停和结算由独立状态控制。效果对象具有生命周期，地图互动对象的运行状态与原始配置分离，因此每次再战都可以完整重置。
 
-鸣人的配置独立在 `src/config/naruto.js`，由角色列表导入。模型采用较小头部、较窄躯干和人形服装轮廓，与哆啦A梦保持相近的整体高度；继续使用固定肢长蒙皮，待机时隐藏查克拉特效，避免增加常驻特效开销。执行 `PREVIEW_CHARACTER=naruto npm run previews` 只更新鸣人立绘；不指定时重绘全部预览。
+鸣人的战斗数据独立在 `src/config/naruto.js`，由角色列表导入。`model` 配置指定本地 GLB、角色高度、朝向和骨架适配器；鸣人使用原作风格的 Mixamo 骨架及走路、跳跃、出拳和胜利动作，小波使用走路、跳跃、下蹲和受击动作。哆啦A梦由 Blender 绑定手臂、腿、头与躯干骨架，适配游戏控制和空气炮瞄准。执行 `PREVIEW_CHARACTER=naruto npm run previews` 只更新鸣人立绘；不指定时重绘全部预览。
+
+## 模型来源与授权
+
+游戏内「模型来源与授权」入口和 [MODEL_CREDITS.md](MODEL_CREDITS.md) 列出三套模型作者、来源与 CC BY 4.0 条款。原始 GLB、本地许可副本和资源地址位于 `public/models/`。新增模型时请先检查其许可、添加署名与许可文件，再在角色配置中指定 GLB，并在 `src/render/model-loader.js` 中加入对应骨架映射；载入失败会使用现有内置模型继续运行。
 
 ## 扩展角色与招式
 
@@ -162,7 +166,7 @@ tests/
 
 新角色可以复用以上行为并调整数值；全新行为需要在引擎 `release` / `collectStrike` 中增加处理。选角界面、角色详情、技能栏和对局创建都会读取列表，不需逐个添加按钮。
 
-模型通过 `bodyStyle` 选择程序化构建器。`src/render/arena.js` 导出 `registerFighterModel(bodyStyle, builder)`，可为新角色注册模型构建器；新增 `previewImage` 后，在运行开发服务器时执行 `node scripts/render-previews.mjs` 可重新生成与模型一致的立绘及地图预览。生成器使用本地 Chromium，输出到 `public/previews/`。未知模型样式会使用现有程序化模型作为可运行替代。`model` 字段目前为未来外部资源预留，本版不加载 Blender / GLTF 文件。
+角色使用本地 `model.src` 配置加载 GLB，并按 `model.rig` 找到骨架、动画和特效挂点。渲染器缓存原始模型，再为每个玩家克隆独立骨架；加载或资源缺失会沿用该角色的内置程序模型。新增 `previewImage` 后，可执行 `node scripts/render-previews.mjs` 重新生成角色立绘和地图预览。Doraemon 的绑定脚本在 `scripts/assets/rig-doraemon.py`，需要 Blender 4.x。
 
 方向招式在基础招式的 `variants` 中配置 `forward`、`backward`、`crouch`、`air`。未覆盖的属性继承基础招式；可覆盖名称、数值、`kind` 与 `animation`。`posture: 'crouch'` 保持低姿态，`hitY/hitHeight` 指定近身或范围判定，`height/angle` 指定出射位置和斜角，`movement` 指定有效段相对移动速度，`gravityScale` 调整空中招式重力。变体共享按键槽冷却，无需新增按键或页面按钮。
 

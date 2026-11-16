@@ -537,6 +537,17 @@ html[lang="en"] .skill-slot b {
 .footer-right {
   font-size: 7px;
 }
+.footer-credits {
+  color: #91a79b;
+  font: inherit;
+  letter-spacing: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  white-space: nowrap;
+}
+.footer-credits:hover {
+  color: #d5e5d7;
+}
 .footer-right i {
   color: var(--lime);
   margin-left: 13px;
@@ -1541,6 +1552,39 @@ kbd {
   font-size: 11px;
   color: #b1c2b4;
   line-height: 1.9;
+}
+.model-credit-list {
+  display: grid;
+  gap: 10px;
+  margin: 20px 0;
+}
+.model-credit-list article {
+  padding: 14px 16px;
+  display: grid;
+  gap: 6px;
+  border: 1px solid #3c584f;
+  border-radius: 8px;
+  background: #13201d;
+  font-size: 11px;
+  color: #aebfb2;
+}
+.model-credit-list h3 {
+  margin: 0 0 2px;
+  color: #e2ede2;
+  font-size: 14px;
+}
+.model-credit-list p {
+  margin: 0;
+}
+.model-credit-list a,
+.model-license-link {
+  color: #a8dec0;
+  text-underline-offset: 3px;
+}
+.model-license-link {
+  display: inline-block;
+  margin: 0 0 18px;
+  font-size: 11px;
 }
 .help-players {
   display: grid;

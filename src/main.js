@@ -89,7 +89,7 @@ function header() {
   return `<header class="site-header"><button class="brand" data-action="home" aria-label="口袋对决主页"><span class="brand-mark">p<span>c</span><i></i></span><span>POCKET<span>CLASH<span class="brand-dot">.</span></span></span></button><span class="header-caption">小小英雄，无限可能</span><nav><button class="text-button" data-action="help" aria-label="操作说明"><span class="key-symbol">?</span><span>操作说明</span></button>${qualityControl()}${languageControl()}<button class="icon-button sound" data-action="sound" aria-label="${audio.enabled ? "关闭" : "开启"}音效" aria-pressed="${audio.enabled}">${audio.enabled ? "♫" : "♩"}</button><span class="local-pill"><i></i> 本地双人</span></nav></header>`;
 }
 function footer() {
-  return `<footer class="site-footer"><span>POCKET CLASH <b>© 2026</b></span><span>两位玩家 · 一台键盘 · 无数次再来一局</span><span class="footer-right">MADE FOR FRIENDLY RIVALRIES <i>✳</i></span></footer>`;
+  return `<footer class="site-footer"><span>POCKET CLASH <b>© 2026</b></span><span>两位玩家 · 一台键盘 · 无数次再来一局</span><button class="footer-credits" data-action="credits">模型来源与授权</button><span class="footer-right">MADE FOR FRIENDLY RIVALRIES <i>✳</i></span></footer>`;
 }
 function steps(active) {
   return `<div class="steps" aria-label="游戏流程">${["选择角色", "选择场地", "准备开战"].map((x, i) => `<span class="${active === i ? "current" : active > i ? "done" : ""}"><b>${active > i ? "✓" : `0${i + 1}`}</b>${x}</span>${i < 2 ? "<i></i>" : ""}`).join("")}</div>`;
@@ -431,6 +431,23 @@ function closeHelp() {
   }
   document.querySelector('[data-action="help"]')?.focus();
 }
+function showCredits() {
+  if (helpOpen) return;
+  helpOpen = true;
+  const resume = page === "fight" && !paused && game.state.phase !== "finished";
+  if (resume) {
+    game.paused = true;
+    input.enabled = false;
+    input.clear();
+  }
+  const el = document.createElement("div");
+  el.className = "modal-root";
+  el.innerHTML = `<section class="help-modal model-credits" role="dialog" aria-modal="true" aria-labelledby="model-credits-title"><button class="modal-close" data-action="close-credits" aria-label="关闭模型授权">×</button><div class="eyebrow">MODEL CREDITS · CC BY 4.0</div><h2 id="model-credits-title">模型来源与授权<span>。</span></h2><p>鸣人、哆啦A梦和小波的模型由以下创作者提供，依照 CC BY 4.0 保留署名。部分模型为本游戏调整了比例、颜色、骨架和配件。</p><div class="model-credit-list"><article><h3>哆啦A梦 · Doraemon</h3><p>模型作者：<a href="https://sketchfab.com/satriek" target="_blank" rel="noreferrer">satriek</a></p><a href="https://sketchfab.com/3d-models/doraemon-b11372b0c29a4ef4b9691180d05870ec" target="_blank" rel="noreferrer">查看原始模型 ↗</a><span>CC BY 4.0 · 已重新绑定游戏骨架并调整比例</span></article><article><h3>天线宝宝小波 · Teletubby Po</h3><p>模型作者：@falterize</p><a href="https://github.com/falterize/katsa-engine" target="_blank" rel="noreferrer">查看模型来源 ↗</a><span>CC BY 4.0 · 已调整颜色并补充天线和屏幕</span></article><article><h3>漩涡鸣人 · Naruto Rigged (HatchXR)</h3><p>模型作者：<a href="https://sketchfab.com/nitwit.friends" target="_blank" rel="noreferrer">nitwit.friends</a></p><a href="https://sketchfab.com/3d-models/naruto-rigged-hatchxr-b03f67238a654141b61720d214ef1b44" target="_blank" rel="noreferrer">查看原始模型 ↗</a><span>CC BY 4.0 · 保留原骨骼和动作并接入战斗招式</span></article></div><a class="model-license-link" href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noreferrer">查看 CC BY 4.0 完整许可条款 ↗</a><button class="button primary full" data-action="close-credits">返回游戏</button></section>`;
+  el.dataset.resume = String(resume);
+  document.body.append(el);
+  localize(el);
+  el.querySelector(".modal-close").focus();
+}
 app.addEventListener("click", handleClick);
 app.addEventListener("change", (event) => {
   if (event.target.dataset.setting === "language") {
@@ -468,7 +485,11 @@ function handleClick(e) {
     case "help":
       showHelp();
       break;
+    case "credits":
+      showCredits();
+      break;
     case "close-help":
+    case "close-credits":
       closeHelp();
       break;
     case "sound":

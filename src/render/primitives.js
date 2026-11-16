@@ -122,13 +122,15 @@ export function disposeTree(root) {
   root?.traverse((o) => {
     if (
       o.geometry &&
+      !o.geometry.userData.sharedAsset &&
       ![sphereGeo, boxGeo, roundedGeo, stageRoundedGeo].includes(o.geometry)
     )
       geos.add(o.geometry);
     for (const m of Array.isArray(o.material) ? o.material : [o.material])
       if (m) {
         mats.add(m);
-        for (const v of Object.values(m)) if (v?.isTexture) textures.add(v);
+        if (!m.userData?.sharedTextures)
+          for (const v of Object.values(m)) if (v?.isTexture) textures.add(v);
       }
   });
   geos.forEach((g) => g.dispose());

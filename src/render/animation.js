@@ -5,6 +5,7 @@ import { sampleStep, updateGait } from "./locomotion.js";
 import { sampleMelee } from "./melee-motion.js";
 import { recoveryMovement } from "../game/moves.js";
 import { narutoMovePose, animateNarutoDetails } from "./naruto-animation.js";
+import { animateExternal } from "./external-animation.js";
 const TAU = Math.PI * 2;
 function poseLeg(m, leg, target) {
   const origin = m.vector
@@ -29,6 +30,13 @@ function poseLeg(m, leg, target) {
 }
 export function animateFighter(m, f, dt, clock, index = 0, hitstop = 0) {
   if (!m) return;
+  if (m.external) {
+    const contactFrame = hitstop > 0 && !m.frozen;
+    m.frozen = hitstop > 0;
+    if (hitstop > 0) dt = contactFrame ? Math.max(dt, 1 / 30) : 0;
+    animateExternal(m, f, dt, clock, hitstop);
+    return;
+  }
   const po = m.type === "po",
     face = f.facing || 1,
     cast = f.currentMove,

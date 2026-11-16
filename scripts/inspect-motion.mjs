@@ -29,6 +29,7 @@ try {
       { RoomEnvironment } =
         await import("/node_modules/three/examples/jsm/environments/RoomEnvironment.js"),
       { makeFighter } = await import("/src/render/fighters.js"),
+      { loadFighterModel } = await import("/src/render/model-loader.js"),
       { animateFighter } = await import("/src/render/animation.js"),
       { characters } = await import("/src/config/content.js"),
       { softShadow, disposeTree } = await import("/src/render/primitives.js");
@@ -66,7 +67,7 @@ try {
       "普攻",
     ];
     for (const [row, c] of characters.entries()) {
-      const model = makeFighter(c),
+      const model = (await loadFighterModel(c).catch(() => null)) || makeFighter(c),
         shadow = softShadow();
       s.add(model.root, shadow);
       const neutral = () => ({
@@ -116,7 +117,8 @@ try {
       }
       s.remove(model.root, shadow);
       disposeTree(model.root);
-      model.skeleton.dispose();
+      model.skeleton?.dispose();
+      model.root.traverse((node) => node.skeleton?.dispose());
     }
   });
   await page.screenshot({ path: "artifacts/motion/poses.png", fullPage: true });

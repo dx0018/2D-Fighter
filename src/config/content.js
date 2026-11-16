@@ -3,6 +3,7 @@
  * Moves are independent data; kinds are resolved by the combat engine.
  */
 import { naruto } from "./naruto.js";
+const assetBase = import.meta.env?.BASE_URL || "/";
 export const characters = [
   {
     id: "doraemon",
@@ -12,7 +13,12 @@ export const characters = [
     description: "保持距离，利用空气炮控制战场，再用未来光束一击制胜。",
     color: "#38bdf8",
     bodyStyle: "robot-cat",
-    model: null,
+    model: {
+      src: `${assetBase}models/doraemon.glb`,
+      height: 3.1,
+      frontAxis: 1,
+      rig: "doraemon",
+    },
     previewImage: "previews/doraemon.webp",
     stats: { power: 3, speed: 3, range: 5 },
     maxHp: 100,
@@ -170,7 +176,12 @@ export const characters = [
       "用天线光线牵制，朝对手移动时冲撞接近；低滑踢与空中回旋制造变化。",
     color: "#ff6584",
     bodyStyle: "antenna",
-    model: null,
+    model: {
+      src: `${assetBase}models/po.glb`,
+      height: 3.1,
+      frontAxis: -1,
+      rig: "teletubby",
+    },
     previewImage: "previews/po.webp",
     stats: { power: 5, speed: 4, range: 2 },
     maxHp: 100,

@@ -36,6 +36,7 @@ try {
     await page.click(`[data-action=choose-map][data-index="${map}"]`);
     await click("fight");
     await page.waitForFunction(() => __POCKET__.arena?.clock > 0.1);
+    await page.evaluate(() => __POCKET__.arena?.ready);
     await page.evaluate(() => {
       __POCKET__.game.paused = true;
       __POCKET__.game.state.phase = "fighting";

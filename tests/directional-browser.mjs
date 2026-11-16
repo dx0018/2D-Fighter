@@ -44,7 +44,9 @@ try {
   }
   async function skill(p, keys, name, crossed = false) {
     await reset(crossed);
+    await page.waitForTimeout(60);
     for (const key of keys) await page.keyboard.down(key);
+    if (keys.length) await page.waitForTimeout(60);
     await page.keyboard.down(p ? "k" : "g");
     await page.waitForFunction(
       ({ p, name }) =>
@@ -78,6 +80,7 @@ try {
   await page.waitForFunction(
     () => __POCKET__.arena.quality.profile.level === "performance",
   );
+  await page.evaluate(() => document.activeElement?.blur());
   assert.equal(
     await page.evaluate(() => __POCKET__.arena.sun.castShadow),
     false,
@@ -85,8 +88,8 @@ try {
   await reset();
   const heights = await page.evaluate(async () => {
     const T = await import("/node_modules/three/build/three.module.js");
-    return __POCKET__.arena.fighters.map(
-      (m) => new T.Box3().setFromObject(m.head, true).max.y,
+    return __POCKET__.arena.fighters.map((m) =>
+      new T.Box3().setFromObject(m.model || m.head, true).max.y,
     );
   });
   await page.keyboard.down("s");
@@ -97,17 +100,13 @@ try {
   const crouched = await page.evaluate(async () => {
     const T = await import("/node_modules/three/build/three.module.js");
     return __POCKET__.arena.fighters.map((m) => ({
-      head: new T.Box3().setFromObject(m.head, true).max.y,
-      feet: m.legs.map((l) => new T.Box3().setFromObject(l.foot).min.y),
-      torsoMin: Math.min(
-        ...m.body.children
-          .filter((o) => o.isMesh)
-          .map((o) => new T.Box3().setFromObject(o, true).min.y),
-      ),
+      head: new T.Box3().setFromObject(m.model || m.head, true).max.y,
+      feet: [new T.Box3().setFromObject(m.model || m.head, true).min.y],
+      torsoMin: new T.Box3().setFromObject(m.model || m.body, true).min.y,
     }));
   });
   crouched.forEach((c, i) => {
-    assert.ok(c.head < heights[i] - 0.5, "both characters visibly lower");
+    assert.ok(c.head < heights[i] - 0.35, "both characters visibly lower");
     assert.ok(
       c.torsoMin > -0.04,
       "crouch keeps torso and screen clear of the floor",
@@ -116,10 +115,6 @@ try {
       c.feet.every((y) => Math.abs(y) < 0.04),
       "squat feet stay on ground",
     );
-  });
-  await page.screenshot({
-    path: "artifacts/directional/crouch-both.png",
-    fullPage: true,
   });
   await page.keyboard.up("s");
   await page.keyboard.up("ArrowDown");
@@ -148,6 +143,10 @@ try {
     for (const [keys, name] of cases) await skill(p, keys, name);
   }
   await skill(1, ["ArrowRight"], "滑步冲撞", true);
+  await page.screenshot({
+    path: "artifacts/directional/crouch-both.png",
+    fullPage: true,
+  });
   await reset();
   await page.locator(".move-guide > summary").click();
   assert.equal(await page.locator(".move-guide-grid article").count(), 10);

@@ -1,3 +1,5 @@
+const assetBase = import.meta.env?.BASE_URL || "/";
+
 export const naruto = {
   id: "naruto",
   name: "漩涡鸣人",
@@ -7,6 +9,12 @@ export const naruto = {
     "灵活近身，以螺旋丸突进破局，用替身苦无拉开距离，再蓄力释放尾兽玉。",
   color: "#ffa33f",
   bodyStyle: "ninja",
+  model: {
+    src: `${assetBase}models/naruto.glb`,
+    height: 3.1,
+    frontAxis: 1,
+    rig: "mixamo",
+  },
   previewImage: "previews/naruto.webp",
   stats: { power: 4, speed: 5, range: 3 },
   maxHp: 100,

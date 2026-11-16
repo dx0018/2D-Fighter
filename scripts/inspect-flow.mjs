@@ -27,6 +27,7 @@ try {
       { RoomEnvironment } =
         await import("/node_modules/three/examples/jsm/environments/RoomEnvironment.js"),
       { makeFighter } = await import("/src/render/fighters.js"),
+      { loadFighterModel } = await import("/src/render/model-loader.js"),
       { animateFighter } = await import("/src/render/animation.js"),
       { Game } = await import("/src/game/engine.js"),
       { characters, maps } = await import("/src/config/content.js"),
@@ -55,7 +56,12 @@ try {
     floor.rotation.x = -Math.PI / 2;
     floor.position.y = -0.015;
     scene.add(floor, new T.GridHelper(100, 100, "#60766c", "#446358"));
-    const models = characters.slice(0, 2).map(makeFighter),
+    const models = await Promise.all(
+      characters.slice(0, 2).map(async (character) =>
+        (await loadFighterModel(character).catch(() => null)) ||
+        makeFighter(character),
+      ),
+    ),
       shadows = characters.slice(0, 2).map(softShadow);
     models.forEach((m, i) => scene.add(m.root, shadows[i]));
     const game = new Game({ characters: characters.slice(0, 2), map: maps[0] });
@@ -98,12 +104,18 @@ try {
         renderer.setScissor(j * 400, 0, 400, 400);
         renderer.render(scene, camera);
         model.root.updateMatrixWorld(true);
-        for (const leg of model.legs)
-          if (
-            leg.planted &&
-            new T.Box3().setFromObject(leg.foot, true).min.y > 0.045
-          )
+        if (model.external) {
+          const bounds = new T.Box3().setFromObject(model.model, true);
+          if (bounds.min.y > 0.045)
             throw new Error(`Floating support foot: ${f.character.id}`);
+        } else {
+          for (const leg of model.legs)
+            if (
+              leg.planted &&
+              new T.Box3().setFromObject(leg.foot, true).min.y > 0.045
+            )
+              throw new Error(`Floating support foot: ${f.character.id}`);
+        }
       }
       return renderer.domElement.toDataURL("image/png").split(",")[1];
     };

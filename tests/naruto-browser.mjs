@@ -147,9 +147,12 @@ try {
           triangles: a.renderer.info.render.triangles,
           rasengan: a.fighters[0].rasengan.visible,
           bijuu: a.fighters[0].bijuu.visible,
-          feet: a.fighters[0].legs.map(
-            (l) => new T.Box3().setFromObject(l.foot, true).min.y,
-          ),
+          feet: [
+            new T.Box3().setFromObject(
+              a.fighters[0].model || a.fighters[0].root,
+              true,
+            ).min.y,
+          ],
           projectiles: g.state.projectiles.map((p) => p.move.visual),
           effects: g.state.effects.map((e) => e.type),
           programs: a.renderer.info.programs.length,

@@ -1,6 +1,23 @@
 // Chinese source copy is the lookup key. Add translations here when adding content.
 export const english = {
   "小小英雄，无限可能": "Little heroes. Endless possibilities.",
+  模型来源与授权: "Model credits & licenses",
+  关闭模型授权: "Close model credits",
+  "鸣人、哆啦A梦和小波的模型由以下创作者提供，依照 CC BY 4.0 保留署名。部分模型为本游戏调整了比例、颜色、骨架和配件。":
+    "Naruto, Doraemon and Po's models are provided by the creators below and credited under CC BY 4.0. Some were resized, recolored, rigged or fitted with accessories for this game.",
+  "哆啦A梦 · Doraemon": "Doraemon",
+  "天线宝宝小波 · Teletubby Po": "Po · Teletubbies",
+  "漩涡鸣人 · Naruto Rigged (HatchXR)": "Naruto · Naruto Rigged (HatchXR)",
+  "查看模型来源 ↗": "View model source ↗",
+  "查看原始模型 ↗": "View original model ↗",
+  "CC BY 4.0 · 已重新绑定游戏骨架并调整比例":
+    "CC BY 4.0 · Re-rigged and resized for this game",
+  "CC BY 4.0 · 已调整颜色并补充天线和屏幕":
+    "CC BY 4.0 · Recolored and fitted with an antenna and screen",
+  "CC BY 4.0 · 保留原骨骼和动作并接入战斗招式":
+    "CC BY 4.0 · Original rig and clips linked to the combat moves",
+  "查看 CC BY 4.0 完整许可条款 ↗": "Read the full CC BY 4.0 terms ↗",
+  返回游戏: "Back to game",
   操作说明: "How to play",
   画质: "Graphics",
   画面质量: "Graphics quality",

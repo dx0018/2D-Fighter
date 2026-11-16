@@ -1,0 +1,10 @@
+Model Information:
+* title: Teletubby character model
+* source: https://github.com/falterize/katsa-engine/tree/main/assets/models/characters
+* author: @falterize
+
+Model License:
+* license type: CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/)
+* requirements: Author must be credited.
+
+The model has been recolored and fitted with an antenna and screen for Pocket Clash.
