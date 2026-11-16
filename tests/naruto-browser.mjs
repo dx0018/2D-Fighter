@@ -194,7 +194,7 @@ try {
   assert.equal(b.kurama, true);
   assert.equal(b.kuramaTails, 9);
   assert.equal(b.kuramaHead, true);
-  assert.ok(b.kuramaHeadHeight > 2);
+  assert.ok(b.kuramaHeadHeight > 5.7 && b.kuramaHeadHeight < 7.2);
   assert.equal(b.kuramaHeadFallback, false);
   assert.ok(b.handsToBijuu.every((distance) => distance < 0.5));
   const shot = await snap("bijuu-release", "bijuu", 1.02);
@@ -265,9 +265,7 @@ try {
   await click("credits");
   const credits = await page.locator(".model-credits").textContent();
   assert.match(credits, /Kurama/);
-  assert.match(credits, /PixelMannen/);
-  assert.match(credits, /CC0 1\.0/);
-  assert.match(credits, /glTF conversion/);
+  assert.match(credits, /Original mesh and materials/);
   await click("close-credits");
   const compatible = await browser.newPage({
     viewport: { width: 390, height: 844 },

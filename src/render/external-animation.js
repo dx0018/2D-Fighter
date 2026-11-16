@@ -251,7 +251,7 @@ function animateKurama(m, f, cast, clock) {
     charge = clamp(elapsed / windup, 0, 1);
   m.kurama.visible = fade > 0.01;
   if (!m.kurama.visible) return;
-  m.kurama.position.set(-(f.facing || 1) * 1.28, 0.06, 0.18);
+  m.kurama.position.set(-(f.facing || 1) * 0.55, 0.06, -1.8);
   m.kurama.quaternion.copy(m.visual.quaternion);
   m.kurama.scale.setScalar((0.98 + charge * 0.12) * (0.94 + Math.sin(clock * 5) * 0.025));
   for (const { material, opacity } of m.kurama.userData.opacityTargets)

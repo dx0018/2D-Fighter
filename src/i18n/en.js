@@ -7,6 +7,11 @@ export const english = {
     "Naruto, Doraemon and Po's models are provided by the creators below and credited under CC BY 4.0. Some were resized, recolored, rigged or fitted with accessories for this game.",
   "鸣人、哆啦A梦和小波的模型由以下创作者提供，依照 CC BY 4.0 保留署名。九尾狐头部使用 CC0 模型，并同时保留骨架与 glTF 转换作者的署名。部分模型为本游戏调整了比例、颜色、骨架和配件。":
     "Naruto, Doraemon and Po's models are credited below under CC BY 4.0. Kurama's fox head comes from a CC0 model, with attribution retained for its rigging and glTF conversion. Some assets were resized, recolored, rigged or fitted with accessories for this game.",
+  "鸣人、哆啦A梦和小波的模型由以下创作者提供，依照 CC BY 4.0 保留署名。九尾狐头部为本游戏制作的风格化模型。部分模型为本游戏调整了比例、颜色、骨架和配件。":
+    "Naruto, Doraemon and Po's models are credited below under CC BY 4.0. The stylized fox head was created for this game. Some assets were resized, recolored or rigged for combat.",
+  "为本游戏制作的风格化九尾狐首，含尖耳、黑色眼纹和獠牙。":
+    "A stylized nine-tailed fox head created for this game, with pointed ears, black eye markings and fangs.",
+  "大型查克拉幻影 · 原创网格与材质": "Giant chakra apparition · Original mesh and materials",
   "哆啦A梦 · Doraemon": "Doraemon",
   "天线宝宝小波 · Teletubby Po": "Po · Teletubbies",
   "漩涡鸣人 · Naruto Rigged (HatchXR)": "Naruto · Naruto Rigged (HatchXR)",
