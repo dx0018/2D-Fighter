@@ -3,6 +3,7 @@ import { clamp, damp, ease } from "./primitives.js";
 import { poseChain } from "./rig.js";
 import { sampleStep, updateGait } from "./locomotion.js";
 import { sampleMelee } from "./melee-motion.js";
+import { recoveryMovement } from "../game/moves.js";
 const TAU = Math.PI * 2;
 function poseLeg(m, leg, target) {
   const origin = m.vector
@@ -32,7 +33,8 @@ export function animateFighter(m, f, dt, clock, index = 0, hitstop = 0) {
     cast = f.currentMove,
     hurt = f.action === "hurt" || f.stun > 0,
     air = !f.grounded;
-  const walk = f.action === "walk" && !air && !cast,
+  const walk =
+      !air && !f.crouching && (f.action === "walk" || recoveryMovement(cast)),
     crouch = f.crouching,
     victory = f.action === "victory",
     defeat = f.action === "defeat";
@@ -380,24 +382,53 @@ export function animateFighter(m, f, dt, clock, index = 0, hitstop = 0) {
     ];
     // The support foot stays in world space even when movement reverses or the
     // torso turns. Swing feet are free to catch the next step.
-    const planting = walk && walking > 0.8 && step.support;
+    const planting = walk && walking > 0.08 && step.support;
+    m.target.set(
+      f.x + cy * target[0] + sy * target[2],
+      f.y + target[1],
+      -sy * target[0] + cy * target[2],
+    );
     if (planting) {
       if (!leg.planted || leg.plantCycle !== step.cycle) {
         leg.plantX = leg.worldX ?? f.x + cy * target[0] + sy * target[2];
         leg.plantZ = leg.worldZ ?? -sy * target[0] + cy * target[2];
         leg.plantCycle = step.cycle;
       }
-      target[0] = cy * (leg.plantX - f.x) - sy * leg.plantZ;
-      target[2] = sy * (leg.plantX - f.x) + cy * leg.plantZ;
+      m.target.x = leg.plantX;
+      m.target.z = leg.plantZ;
     }
+    leg.releaseOffset ??= new THREE.Vector3();
+    if (walk && leg.planted && !planting) {
+      // Start a swing from the real toe-off, including a short starting step.
+      // A fixed ideal stride otherwise pulls that foot backward on release.
+      leg.releaseOffset.set(
+        leg.worldX - m.target.x,
+        0,
+        leg.worldZ - m.target.z,
+      );
+    }
+    if (!walk || planting) leg.releaseOffset.set(0, 0, 0);
+    m.target.add(leg.releaseOffset);
+    leg.releaseOffset.multiplyScalar(Math.exp(-dt * 18));
     leg.planted = planting;
-    leg.placement ??= new THREE.Vector3(...target);
-    if (planting) leg.placement.set(...target);
-    else {
-      m.target.set(...target);
-      leg.placement.lerp(m.target, 1 - Math.exp(-dt * (air || kick ? 42 : 24)));
+    // Smooth free ankles in world space, so moving the root never adds a
+    // second, sudden movement to a foot that is just leaving the floor.
+    // Air poses stay attached to the body rather than lagging behind takeoff.
+    if (leg.placement && (air || leg.wasAir)) {
+      leg.placement.x += f.x - (leg.rootX ?? f.x);
+      leg.placement.y += f.y - (leg.rootY ?? f.y);
     }
-    poseLeg(m, leg, leg.placement);
+    leg.placement ??= m.target.clone();
+    if (planting) leg.placement.copy(m.target);
+    else
+      leg.placement.lerp(m.target, 1 - Math.exp(-dt * (air || kick ? 42 : 24)));
+    const dx = leg.placement.x - f.x;
+    m.target.set(
+      cy * dx - sy * leg.placement.z,
+      leg.placement.y - f.y,
+      sy * dx + cy * leg.placement.z,
+    );
+    poseLeg(m, leg, m.target);
     leg.foot.rotation.order = "YXZ";
     leg.foot.rotation.y = (face * Math.PI) / 2 - yaw;
     leg.foot.rotation.x = damp(
@@ -408,6 +439,9 @@ export function animateFighter(m, f, dt, clock, index = 0, hitstop = 0) {
     );
     leg.worldX = f.x + cy * leg.foot.position.x + sy * leg.foot.position.z;
     leg.worldZ = -sy * leg.foot.position.x + cy * leg.foot.position.z;
+    leg.rootX = f.x;
+    leg.rootY = f.y;
+    leg.wasAir = air;
   });
   const blink = Math.sin(t * 0.8 + index * 2) > 0.997;
   m.eyes.forEach(
@@ -442,9 +476,11 @@ export function animateFighter(m, f, dt, clock, index = 0, hitstop = 0) {
     m.cannon.position.y = cast?.move.kind === "beam" ? -0.1 : 0.18;
   }
   const flash = f.flash > 0 ? Math.min(0.7, f.flash * 5) : 0;
-  for (const mat of m.materials) {
-    if (mat === m.screen?.material) continue;
-    mat.emissive.set("#ffc29b");
-    mat.emissiveIntensity = flash;
-  }
+  if (m.lastFlash !== flash)
+    for (const mat of m.materials) {
+      if (mat === m.screen?.material) continue;
+      mat.emissive.set("#ffc29b");
+      mat.emissiveIntensity = flash;
+    }
+  m.lastFlash = flash;
 }

@@ -12,6 +12,7 @@ export const ease = (t) => {
 const sphereGeo = new THREE.SphereGeometry(1, 16, 12);
 const boxGeo = new THREE.BoxGeometry(1, 1, 1);
 const roundedGeo = new RoundedBoxGeometry(1, 1, 1, 2, 0.12);
+const stageRoundedGeo = new RoundedBoxGeometry(1, 1, 1, 1, 0.12);
 export function surface(color, extra = {}) {
   return new THREE.MeshStandardMaterial({
     color,
@@ -32,6 +33,9 @@ export function mesh(g, geo, mat, pos = [0, 0, 0], scale = [1, 1, 1]) {
 export const ball = (g, mat, p, s) => mesh(g, sphereGeo, mat, p, s);
 export const box = (g, mat, p, s) => mesh(g, boxGeo, mat, p, s);
 export const roundBox = (g, mat, p, s) => mesh(g, roundedGeo, mat, p, s);
+// Scenery bevels occupy only a few pixels. Keep the extra segments on fighters.
+export const stageRoundBox = (g, mat, p, s) =>
+  mesh(g, stageRoundedGeo, mat, p, s);
 export const tube = (g, mat, p, top, bottom, height, n = 16) =>
   mesh(g, new THREE.CylinderGeometry(top, bottom, height, n), mat, p);
 export function curve(g, mat, points, r = 0.015) {
@@ -109,14 +113,17 @@ export function noiseTexture(seed = 17) {
 }
 // Static scenery is merged by material, keeping rich stages affordable to render.
 export function batchStatic(group) {
-  return mergeScenery(group, [sphereGeo, boxGeo, roundedGeo]);
+  return mergeScenery(group, [sphereGeo, boxGeo, roundedGeo, stageRoundedGeo]);
 }
 export function disposeTree(root) {
   const geos = new Set(),
     mats = new Set(),
     textures = new Set();
   root?.traverse((o) => {
-    if (o.geometry && ![sphereGeo, boxGeo, roundedGeo].includes(o.geometry))
+    if (
+      o.geometry &&
+      ![sphereGeo, boxGeo, roundedGeo, stageRoundedGeo].includes(o.geometry)
+    )
       geos.add(o.geometry);
     for (const m of Array.isArray(o.material) ? o.material : [o.material])
       if (m) {
@@ -205,7 +212,9 @@ export function batchRigid(group, excluded = []) {
   }
   for (const node of originals) {
     node.removeFromParent();
-    if (![sphereGeo, boxGeo, roundedGeo].includes(node.geometry))
+    if (
+      ![sphereGeo, boxGeo, roundedGeo, stageRoundedGeo].includes(node.geometry)
+    )
       node.geometry.dispose();
   }
 }

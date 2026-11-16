@@ -1,5 +1,5 @@
 /** Deterministic combat core. No DOM, timers or renderer dependency. */
-import { moveContext, selectMove } from "./moves.js";
+import { moveContext, selectMove, recoveryMovement } from "./moves.js";
 import { segmentHitsBox, fighterHeight } from "./collision.js";
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const EPS = 1e-7;
@@ -249,6 +249,11 @@ export class Game {
           1,
         );
         f.vx *= Math.exp(-16 * dt);
+        if (f.grounded && !f.crouching && recoveryMovement(cast)) {
+          const direction =
+            Number(!!inputs[id].right) - Number(!!inputs[id].left);
+          f.vx = direction * f.character.speed;
+        }
         if (
           move.kind === "dash" &&
           cast.elapsed >= move.windup &&
@@ -275,6 +280,8 @@ export class Game {
         if (cast.elapsed >= move.windup + move.active + move.recovery) {
           f.currentMove = null;
           f.moveProgress = 0;
+          if (f.grounded && !f.crouching && recoveryMovement(cast))
+            this.setAction(f, Math.abs(f.vx) > 0.12 ? "walk" : "idle");
         }
       } else if (f.stun > EPS) {
         f.vx *= Math.exp(-5 * dt);
@@ -304,7 +311,11 @@ export class Game {
         this.map.bounds.left + 0.6,
         this.map.bounds.right - 0.6,
       );
-      if (f.grounded && f.action === "walk")
+      if (
+        f.grounded &&
+        (f.action === "walk" ||
+          (!f.crouching && recoveryMovement(f.currentMove)))
+      )
         f.walkDistance += Math.abs(f.x - oldX);
       if (f.grounded && f.action === "walk" && Math.abs(f.x - oldX) < EPS) {
         f.vx = 0;

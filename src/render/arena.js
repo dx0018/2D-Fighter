@@ -9,6 +9,7 @@ import { drawFallback } from "./fallback.js";
 import { disposeTree, softShadow } from "./primitives.js";
 import { bakeStaticShadows } from "./static-shadows.js";
 import { RenderQuality } from "./quality.js";
+import { localize } from "../i18n/index.js";
 export { registerFighterModel };
 export class ArenaRenderer {
   constructor(container, { map, characters, onError, quality = "auto" } = {}) {
@@ -42,6 +43,7 @@ export class ArenaRenderer {
       this.canvas = this.renderer.domElement;
       container.append(this.canvas);
       this.canvas.setAttribute("aria-label", "透视 2.5D 双人格斗场景");
+      localize(this.canvas);
       this.scene = new THREE.Scene();
       this.cameraRig = new ArenaCamera(map);
       this.camera = this.cameraRig.camera;

@@ -33,7 +33,7 @@ export class RenderQuality {
     this.average += (seconds - this.average) * 0.08;
     if (this.samples < 20) return false;
     this.slowFrames =
-      this.average > 1 / 38
+      this.average > 1 / 52
         ? this.slowFrames + 1
         : Math.max(0, this.slowFrames - 1);
     if (this.slowFrames >= 16) {

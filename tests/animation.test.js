@@ -201,6 +201,30 @@ test("walk start, release and reversal keep feet grounded without large pose jum
   disposeTree(m.root);
 });
 
+test("the first walking frame plants a real support foot without sliding the idle pose", () => {
+  const g = new Game({ characters, map: maps[0] });
+  g.state.phase = "fighting";
+  const f = g.state.fighters[0],
+    m = makeFighter(characters[0]);
+  animate(m, f);
+  const before = m.legs.map((leg) =>
+    leg.foot.getWorldPosition(new THREE.Vector3()),
+  );
+  g.step(1 / 60, [{ right: true }, {}]);
+  animateFighter(m, f, 1 / 60, 1);
+  m.root.updateMatrixWorld(true);
+  assert.ok(m.legs.some((leg) => leg.planted));
+  m.legs.forEach((leg, i) => {
+    if (leg.planted)
+      assert.ok(
+        leg.foot.getWorldPosition(new THREE.Vector3()).distanceTo(before[i]) <
+          0.025,
+      );
+  });
+  m.skeleton.dispose();
+  disposeTree(m.root);
+});
+
 test("a normal punch extends before contact and returns to guard without a release snap", () => {
   const m = makeFighter(characters[0]),
     f = state(),

@@ -48,3 +48,39 @@ test("long stalls are bounded and invalid frame times never corrupt physics", ()
   assert.equal(frameDelta(-1), 0);
   assert.equal(frameDelta(NaN), 0);
 });
+
+test("normal attacks regain movement late in recovery without cancelling or repeating hits", () => {
+  for (const character of characters) {
+    const g = new Game({ characters: [character, character], map: maps[0] });
+    g.state.phase = "fighting";
+    const [f, rival] = g.state.fighters;
+    f.x = -15;
+    rival.x = 15;
+    g.step(1 / 120, [{ attack: true }, {}]);
+    const cast = f.currentMove;
+    // Moving during the contact window cannot skip the committed attack.
+    while (cast.elapsed < cast.move.windup + cast.move.active)
+      g.step(1 / 120, [{ left: true }, {}]);
+    assert.equal(f.vx, 0);
+    const end = cast.move.windup + cast.move.active + cast.move.recovery;
+    while (cast.elapsed < end - 0.025) g.step(1 / 120, [{ left: true }, {}]);
+    assert.equal(f.currentMove, cast, "the attack still recovers normally");
+    assert.equal(
+      f.vx,
+      -character.speed,
+      "late recovery accepts movement immediately",
+    );
+    assert.ok(
+      f.x < -15 && f.walkDistance > 0,
+      "the walking pose follows actual recovery travel",
+    );
+    while (f.currentMove) g.step(1 / 120, [{ left: true }, {}]);
+    assert.equal(f.currentMove, null);
+    assert.equal(
+      f.action,
+      "walk",
+      "recovery ends without an idle pose between walking frames",
+    );
+    assert.equal(rival.hp, rival.character.maxHp);
+  }
+});

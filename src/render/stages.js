@@ -3,7 +3,7 @@ import { mergeVertices } from "three/addons/utils/BufferGeometryUtils.js";
 import {
   ball,
   box,
-  roundBox,
+  stageRoundBox as roundBox,
   tube,
   curve,
   ring,
@@ -52,7 +52,7 @@ function paving(theme) {
   return t;
 }
 function foliage(g, x, y, z, size, color) {
-  const source = new THREE.IcosahedronGeometry(1, 3);
+  const source = new THREE.IcosahedronGeometry(1, 2);
   source.deleteAttribute("normal");
   source.deleteAttribute("uv");
   const geo = mergeVertices(source);

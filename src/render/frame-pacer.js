@@ -1,5 +1,4 @@
-// Keep input and simulation sampling at the display rate, but avoid rendering
-// more than 60 frames per second on high-refresh displays.
+// Throttle noncritical HUD text updates independently of animation and input.
 export class FramePacer {
   constructor(fps = 60) {
     this.interval = 1 / fps;

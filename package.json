@@ -11,6 +11,7 @@
     "test:e2e": "node tests/browser.mjs",
     "test:compat": "node tests/browser-compat.mjs",
     "test:directional": "node tests/directional-browser.mjs",
+    "test:experience": "node tests/experience-browser.mjs",
     "test:visual": "node tests/visual-upgrade.mjs",
     "previews": "node scripts/render-previews.mjs",
     "inspect:motion": "node scripts/inspect-motion.mjs",

@@ -33,6 +33,8 @@ export class CombatEffects {
   constructor(scene) {
     this.scene = scene;
     this.effects = new Map();
+    this.pool = new Map();
+    this.pooledCount = 0;
     this.projectiles = [];
     this.texture = glowTexture();
     this.geo = {
@@ -118,9 +120,20 @@ export class CombatEffects {
     return s;
   }
   create(e) {
+    const poolKey = `${e.type}:${e.color}:${!!e.heavy}`;
+    const cached = this.pool.get(poolKey)?.pop();
+    if (cached) {
+      this.pooledCount--;
+      cached.group.position.set(0, 0, 0);
+      cached.group.rotation.set(0, 0, 0);
+      cached.group.scale.setScalar(1);
+      this.scene.add(cached.group);
+      this.effects.set(e.id, cached);
+      return cached;
+    }
     const g = new THREE.Group(),
       color = e.color || "#d6eeff",
-      data = { group: g, parts: [], sparks: [], rings: [] };
+      data = { group: g, parts: [], sparks: [], rings: [], poolKey };
     this.scene.add(g);
     if (e.type === "hit") {
       data.core = this.mesh(g, "star", "#fff6da");
@@ -190,12 +203,20 @@ export class CombatEffects {
     this.effects.set(e.id, data);
     return data;
   }
-  remove(d) {
+  remove(d, recycle = false) {
+    this.scene.remove(d.group);
+    // Keep a bounded set of effects alive between attacks. Repeated punches
+    // reuse GPU buffers/materials instead of disposing and recompiling them.
+    if (recycle && this.pooledCount < 24) {
+      if (!this.pool.has(d.poolKey)) this.pool.set(d.poolKey, []);
+      this.pool.get(d.poolKey).push(d);
+      this.pooledCount++;
+      return;
+    }
     d.group.traverse((o) => {
       if (o.isInstancedMesh) o.dispose();
       if (o.material) o.material.dispose();
     });
-    this.scene.remove(d.group);
   }
   update(state, clock) {
     const alive = new Set();
@@ -386,7 +407,7 @@ export class CombatEffects {
     }
     for (const [id, d] of this.effects)
       if (!alive.has(id)) {
-        this.remove(d);
+        this.remove(d, true);
         this.effects.delete(id);
       }
     for (const d of this.effects.values()) this.flushParticles(d.group);
@@ -424,6 +445,11 @@ export class CombatEffects {
   }
   dispose() {
     for (const d of this.effects.values()) this.remove(d);
+    for (const entries of this.pool.values())
+      for (const d of entries) this.remove(d);
+    this.pool.clear();
+    this.effects.clear();
+    this.pooledCount = 0;
     for (const d of this.projectiles) this.remove(d);
     Object.values(this.geo).forEach((g) => g.dispose());
     this.texture.dispose();

@@ -29,6 +29,7 @@ TEST_URL=http://localhost:5173 npm run test:e2e
 TEST_URL=http://localhost:5173 npm run test:compat  # 无 WebGL 兼容模式与完整招式检查
 TEST_URL=http://localhost:5173 npm run test:visual  # 三张地图、全部招式的 WebGL 画面检查
 TEST_URL=http://localhost:5173 npm run test:directional  # 十种技能的真实按键、蹲姿与招式表
+TEST_URL=http://localhost:5173 npm run test:experience   # 中英文切换、对局保留、高刷节奏与窄屏
 ```
 
 脚本默认浏览器路径为 `/usr/bin/chromium`，可用 `CHROMIUM_PATH=/你的/chromium/路径` 指定其它 Chromium。若 Vite 使用其它端口，请同步调整 `TEST_URL`。截图保存在忽略追踪的 `artifacts/` 目录中。
@@ -38,6 +39,8 @@ TEST_URL=http://localhost:5173 npm run test:directional  # 十种技能的真实
 ## 操作与流程
 
 点击「开始游戏」，分别为 P1 和 P2 选择角色并确认。选择地图，或点击随机选图后查看最终选中的地图，再点击「准备开战」。三秒倒数结束后开始对战。
+
+页面顶部的语言选择器可随时切换「中文 / English」，并在下次打开时记住选择。菜单、角色与地图介绍、招式表、冷却提示、暂停和结算均会切换。语言切换只更新界面文字，保留角色选择、地图、生命、冷却和正在进行的对局。
 
 | 动作        | P1    | P2    |
 | ----------- | ----- | ----- |
@@ -74,7 +77,9 @@ TEST_URL=http://localhost:5173 npm run test:directional  # 十种技能的真实
 
 角色使用骨骼蒙皮与固定长度的双骨 IK。走跑按实际横向位移推进，支撑脚锁定在地面，包含屈膝、摆腿与反向摆臂；反向移动会反向推进步态，抬脚落脚使用连续曲线，松键后逐渐收回脚步。普攻使用连续的蓄力、伸手与回到待机姿势曲线，哆啦A梦直拳和小波拍击具有不同路线。蹲姿通过髋部下降和躯干前倾完成，头部、躯干保持原比例；脸和腹部贴合主体表面。地面移动、转向和松键停止在下一个模拟步生效；跳跃准备为 25ms，包含空中收腿和落地缓冲。
 
-右上角可选择「自动／精细／流畅」画质，并记住选择。对战渲染限制为 60fps，键盘采样与战斗模拟仍跟随浏览器刷新；这样高刷屏不会额外加重骨骼和 3D 绘制。自动模式会在持续慢帧或软件渲染时降低绘制分辨率和动态阴影负担。暂停时保持画面，调整窗口大小会重绘；主页预览限制为 30fps。低于 20fps 时模拟不再额外减速，长时间切出窗口仍会暂停。
+右上角可选择「自动／精细／流畅」画质，并记住选择。对战动画、输入和模拟跟随浏览器刷新，不再把高刷屏画面强制跳帧到 60fps；HUD 文字独立限制为每秒 30 次更新，阶段变化立即显示。自动模式在持续低于约 52fps 或软件渲染时降低绘制分辨率和动态阴影负担。街景减少远处树叶和建筑倒角的细分，连续攻击复用有容量上限的特效资源。暂停时保持画面，调整窗口大小会重绘；主页预览限制为 30fps。低于 20fps 时模拟不再额外减速，长时间切出窗口仍会暂停。
+
+普攻命中停顿缩短为 28／34ms，保留击退与命中反馈；冷却为 0.42／0.52 秒。直拳与拍击在后摇的最后 45% 可恢复地面移动，攻击本身仍正常完成，持续按键仍不会自动连发。起步第一帧即可落脚支撑，摆腿从实际离地点过渡，自由脚在世界坐标平滑，空中姿势继续跟随身体。
 
 ## 项目结构
 
@@ -83,6 +88,9 @@ src/
   main.js                 页面状态、选择流程、HUD、结算与暂停
   style.css               响应式界面与布局
   config/content.js       角色、招式与地图配置
+  i18n/
+    index.js              语言保存、动态文案与保留 DOM 的语言切换
+    en.js                 菜单、角色、地图和招式的英文文案
   game/
     engine.js             独立战斗模拟、命中和对象互动
     frame-time.js         帧时间策略与长停顿限制
@@ -123,6 +131,7 @@ tests/
   browser-compat.mjs       Canvas 回退、六个攻击键与地图互动检查
   visual-upgrade.mjs       新场景、招式和窄屏 HUD 实际渲染检查
   directional-browser.mjs  十种技能真实按键、双人蹲姿与招式表
+  experience-browser.mjs   双语流程、切换保留对局、原生刷新节奏与特效复用
 ```
 
 `Game` 不依赖 DOM 或渲染器，通过 `step(dt, inputs)` 推进状态，渲染器读取 `game.state`。输入只在对战阶段启用，倒数、暂停和结算由独立状态控制。效果对象具有生命周期，地图互动对象的运行状态与原始配置分离，因此每次再战都可以完整重置。
@@ -146,6 +155,8 @@ tests/
 模型通过 `bodyStyle` 选择程序化构建器。`src/render/arena.js` 导出 `registerFighterModel(bodyStyle, builder)`，可为新角色注册模型构建器；新增 `previewImage` 后，在运行开发服务器时执行 `node scripts/render-previews.mjs` 可重新生成与模型一致的立绘及地图预览。生成器使用本地 Chromium，输出到 `public/previews/`。未知模型样式会使用现有程序化模型作为可运行替代。`model` 字段目前为未来外部资源预留，本版不加载 Blender / GLTF 文件。
 
 方向招式在基础招式的 `variants` 中配置 `forward`、`backward`、`crouch`、`air`。未覆盖的属性继承基础招式；可覆盖名称、数值、`kind` 与 `animation`。`posture: 'crouch'` 保持低姿态，`hitY/hitHeight` 指定近身或范围判定，`height/angle` 指定出射位置和斜角，`movement` 指定有效段相对移动速度，`gravityScale` 调整空中招式重力。变体共享按键槽冷却，无需新增按键或页面按钮。
+
+普攻可设置 `recoveryMovement`（0～1），指定后摇进行到何时恢复站立地面移动；不影响技能、蹲姿与空中招式。新增内容的中文名称、介绍与招式说明应同步补充到 `src/i18n/en.js`，未翻译的文案会显示原文。
 
 ## 扩展地图与互动对象
 
