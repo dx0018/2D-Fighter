@@ -4,6 +4,7 @@ import { poseChain } from "./rig.js";
 import { sampleStep, updateGait } from "./locomotion.js";
 import { sampleMelee } from "./melee-motion.js";
 import { recoveryMovement } from "../game/moves.js";
+import { narutoMovePose, animateNarutoDetails } from "./naruto-animation.js";
 const TAU = Math.PI * 2;
 function poseLeg(m, leg, target) {
   const origin = m.vector
@@ -122,7 +123,13 @@ export function animateFighter(m, f, dt, clock, index = 0, hitstop = 0) {
       style = move.animation,
       melee = key === "attack" ? sampleMelee(move, elapsed) : null;
     hands = hands.map((h) => [...h]);
-    if (style === "sweep" || style === "slide") {
+    const ninjaPose =
+      m.type === "naruto"
+        ? narutoMovePose(cast, face, w, power, released)
+        : null;
+    if (ninjaPose) {
+      ({ hands, lean, twist, bodyY, squash } = ninjaPose);
+    } else if (style === "sweep" || style === "slide") {
       hands[front] = [face * 0.78, 1.55, 0.55];
       hands[back] = [-face * 0.65, 1.1, 0.2];
       kick = melee ? 0.72 * melee.extension : released ? 0.8 * power : 0;
@@ -449,7 +456,8 @@ export function animateFighter(m, f, dt, clock, index = 0, hitstop = 0) {
       (eye.scale.y = damp(eye.scale.y, hurt ? 0.28 : blink ? 0.08 : 1, dt, 35)),
   );
   m.pupils.forEach((p, i) => {
-    p.position.x = (po ? 0 : i ? -0.045 : 0.045) + face * 0.02;
+    p.position.x =
+      (m.pupilRestX?.[i] ?? (po ? 0 : i ? -0.045 : 0.045)) + face * 0.02;
   });
   m.smile.visible = !mouth;
   m.mouth.visible = mouth;
@@ -483,4 +491,5 @@ export function animateFighter(m, f, dt, clock, index = 0, hitstop = 0) {
       mat.emissiveIntensity = flash;
     }
   m.lastFlash = flash;
+  if (m.type === "naruto") animateNarutoDetails(m, f, t);
 }

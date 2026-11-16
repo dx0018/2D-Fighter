@@ -86,6 +86,30 @@ export class GameAudio {
   play(e) {
     if (!this.enabled || !this.context || this.context.state !== "running")
       return;
+    if (e.visual === "bijuu" && ["cast", "release", "hit"].includes(e.type)) {
+      if (e.type === "cast") {
+        this.tone(60, 190, 0.8, 0.12, "sine");
+        this.tone(100, 280, 0.8, 0.04, "triangle");
+      } else {
+        this.noiseBurst(0.42, 850, 0.2);
+        this.tone(95, 28, 0.5, 0.22, "triangle");
+      }
+      return;
+    }
+    if (
+      e.visual === "rasengan" &&
+      ["cast", "release", "hit"].includes(e.type)
+    ) {
+      this.noiseBurst(e.type === "cast" ? 0.22 : 0.18, 2300, 0.1);
+      this.tone(
+        e.type === "cast" ? 350 : 700,
+        e.type === "cast" ? 900 : 180,
+        0.22,
+        0.07,
+        "sine",
+      );
+      return;
+    }
     if (e.type === "hit") {
       this.tone(
         e.heavy ? 110 : 180,

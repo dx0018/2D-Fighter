@@ -55,10 +55,10 @@ try {
     floor.rotation.x = -Math.PI / 2;
     floor.position.y = -0.015;
     scene.add(floor, new T.GridHelper(100, 100, "#60766c", "#446358"));
-    const models = characters.map(makeFighter),
-      shadows = characters.map(softShadow);
+    const models = characters.slice(0, 2).map(makeFighter),
+      shadows = characters.slice(0, 2).map(softShadow);
     models.forEach((m, i) => scene.add(m.root, shadows[i]));
-    const game = new Game({ characters, map: maps[0] });
+    const game = new Game({ characters: characters.slice(0, 2), map: maps[0] });
     game.state.phase = "fighting";
     game.state.fighters[0].x = -10;
     game.state.fighters[1].x = 10;

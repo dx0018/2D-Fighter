@@ -30,7 +30,7 @@ try {
   await click("start");
   assert.equal(
     await page.locator('[data-action="choose-character"]').count(),
-    4,
+    6,
   );
   assert.equal(
     await page.locator('[data-action="to-maps"]').isDisabled(),

@@ -1,7 +1,9 @@
+import { narutoPortrait } from "./naruto-fallback.js";
 let uid = 0;
 export function createPortrait(character, fallback = false) {
   if (character.previewImage && !fallback)
     return `<img class="rendered-portrait" src="${import.meta.env.BASE_URL}${character.previewImage}" alt="${character.name} 3D 预览" data-character-preview="${character.id}" decoding="async">`;
+  if (character.bodyStyle === "ninja") return narutoPortrait(character.name);
   const id = `p${uid++}`;
   const dora = character.bodyStyle !== "antenna" && character.id !== "po";
   return `<svg viewBox="0 0 280 300" role="img" aria-label="${character.name}" xmlns="http://www.w3.org/2000/svg"><defs><radialGradient id="${id}" cx="35%" cy="25%" r="80%"><stop stop-color="${dora ? "#48d8fa" : "#ff7e74"}"/><stop offset=".7" stop-color="${dora ? "#0796d0" : "#dc354f"}"/><stop offset="1" stop-color="${dora ? "#04628e" : "#902338"}"/></radialGradient><radialGradient id="${id}w" cx="35%" cy="25%"><stop stop-color="#fffdf0"/><stop offset="1" stop-color="#d4e6df"/></radialGradient><filter id="${id}s"><feDropShadow dx="0" dy="7" stdDeviation="5" flood-opacity=".16"/></filter></defs><ellipse cx="140" cy="278" rx="77" ry="12" fill="#07171c" opacity=".16"/><g filter="url(#${id}s)">${

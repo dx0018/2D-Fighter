@@ -4,7 +4,7 @@ import { Game } from "../src/game/engine.js";
 import { characters, maps } from "../src/config/content.js";
 import { frameDelta } from "../src/game/frame-time.js";
 const game = () => {
-  const g = new Game({ characters, map: maps[0] });
+  const g = new Game({ characters: characters.slice(0, 2), map: maps[0] });
   g.state.phase = "fighting";
   g.state.fighters[0].x = -10;
   g.state.fighters[1].x = 20;

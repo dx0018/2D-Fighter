@@ -1,5 +1,4 @@
-// Chinese source copy is the lookup key. New content can add translations here
-// without changing combat data or creating a second roster.
+// Chinese source copy is the lookup key. Add translations here when adding content.
 export const english = {
   "小小英雄，无限可能": "Little heroes. Endless possibilities.",
   操作说明: "How to play",
@@ -201,4 +200,35 @@ export const english = {
     "A 60-meter moonlit garden of cherry trees, lanterns and bridges. Fireflies drift over a pool reflecting the moon.",
   "？": "?",
   "。": ".",
+  漩涡鸣人: "Naruto Uzumaki",
+  "说到做到，这就是我的忍道": "My word is my ninja way",
+  "灵活近身，以螺旋丸突进破局，用替身苦无拉开距离，再蓄力释放尾兽玉。":
+    "Close in with Rasengan, escape with Substitution Kunai, then charge a devastating Tailed Beast Bomb.",
+  木叶直拳: "Leaf Jab",
+  "快速体术直拳，命中恢复能量；收招末段可接走位。":
+    "A quick taijutsu punch. Restores energy on hit; move again late in recovery.",
+  木叶低扫: "Leaf Sweep",
+  "蹲下扫腿，压制地面；对手可以跳过。":
+    "A crouching sweep that controls the ground. Rivals can jump over it.",
+  木叶飞踢: "Leaf Flying Kick",
+  "空中前踢，抢占距离并拦截跳跃对手。":
+    "An aerial kick that claims space and intercepts jumping rivals.",
+  螺旋丸: "Rasengan",
+  "掌心凝聚旋转查克拉，向前踏步推击；需要近身命中。":
+    "Gather spinning chakra in your palm and drive forward. Requires close range.",
+  疾风螺旋丸: "Rasengan Rush",
+  "向敌人移动＋技能，带着螺旋丸快速突进；落空后可被反击。":
+    "Move toward your rival + special to rush in with Rasengan. A miss leaves you open.",
+  替身苦无: "Substitution Kunai",
+  "后撤时以替身木掩护，短暂闪避并掷出苦无。":
+    "Retreat behind a substitution log, briefly evade and throw a kunai.",
+  贴地螺旋丸: "Low Rasengan",
+  "低姿态向前推击，命中下段；对手可以跳过。":
+    "Drive a low Rasengan forward. Hits low; rivals can jump over it.",
+  俯冲螺旋丸: "Diving Rasengan",
+  "在空中斜下突进，落地时结束招式；留意对手的站位。":
+    "Dive diagonally downward with Rasengan. The move ends on landing; watch your rival's position.",
+  尾兽玉: "Tailed Beast Bomb",
+  "凝聚暗色查克拉球后向前发射，命中产生爆裂冲击；蓄力时可被打断。":
+    "Gather dark chakra and fire an explosive Tailed Beast Bomb. Charging can be interrupted.",
 };

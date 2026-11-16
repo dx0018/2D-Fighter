@@ -35,7 +35,7 @@ try {
     document.body.innerHTML = "";
     document.body.style.cssText = "margin:0;background:#182927";
     const r = new T.WebGLRenderer({ antialias: true });
-    r.setSize(1536, 720);
+    r.setSize(1536, characters.length * 360);
     r.setClearColor("#233735");
     r.toneMapping = T.ACESFilmicToneMapping;
     r.toneMappingExposure = 1;
@@ -106,8 +106,8 @@ try {
         for (let i = 0; i < 45; i++)
           animateFighter(model, f, 1 / 60, i / 60, row);
         s.updateMatrixWorld(true);
-        r.setViewport(col * 256, (1 - row) * 360, 256, 360);
-        r.setScissor(col * 256, (1 - row) * 360, 256, 360);
+        r.setViewport(col * 256, (characters.length - 1 - row) * 360, 256, 360);
+        r.setScissor(col * 256, (characters.length - 1 - row) * 360, 256, 360);
         r.render(s, cam);
         const label = document.createElement("div");
         label.style.cssText = `position:absolute;left:${col * 256 + 12}px;top:${row * 360 + 331}px;color:#d8eddc;font:13px sans-serif`;
@@ -119,7 +119,7 @@ try {
       model.skeleton.dispose();
     }
   });
-  await page.screenshot({ path: "artifacts/motion/poses.png" });
+  await page.screenshot({ path: "artifacts/motion/poses.png", fullPage: true });
   if (errors.length) throw new Error(errors.join("\n"));
   console.log(
     "Rendered rigid proportions, fixed-length skinning and six poses per character.",

@@ -169,7 +169,7 @@ test("Doraemon's chest and diving cannon poses align with the shot in both direc
 });
 
 test("walk start, release and reversal keep feet grounded without large pose jumps", () => {
-  const g = new Game({ characters, map: maps[0] }),
+  const g = new Game({ characters: characters.slice(0, 2), map: maps[0] }),
     m = makeFighter(characters[0]),
     f = g.state.fighters[0];
   g.state.phase = "fighting";
@@ -202,7 +202,7 @@ test("walk start, release and reversal keep feet grounded without large pose jum
 });
 
 test("the first walking frame plants a real support foot without sliding the idle pose", () => {
-  const g = new Game({ characters, map: maps[0] });
+  const g = new Game({ characters: characters.slice(0, 2), map: maps[0] });
   g.state.phase = "fighting";
   const f = g.state.fighters[0],
     m = makeFighter(characters[0]);

@@ -1,3 +1,4 @@
+import { drawNaruto } from "./naruto-fallback.js";
 export function drawFallback(state) {
   const c = this.ctx,
     w = this.canvas.width,
@@ -62,6 +63,10 @@ export function drawFallback(state) {
     c.fill();
   };
   state.fighters.forEach((f, i) => {
+    if (f.character.bodyStyle === "ninja") {
+      drawNaruto(c, px(f.x), base - f.y * scale, scale, f, this.clock);
+      return;
+    }
     const x = px(f.x),
       y = base - f.y * scale,
       s = scale,

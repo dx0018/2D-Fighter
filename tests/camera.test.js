@@ -52,7 +52,7 @@ test("fast separation never clips fighters while zoom is catching up", () => {
 test("air-skill trajectories stay below the HUD while a grounded rival stays on screen", () => {
   for (const aspect of [2, 0.94, 2.8])
     for (const p of [0, 1]) {
-      const g = new Game({ characters, map: maps[0] }),
+      const g = new Game({ characters: characters.slice(0, 2), map: maps[0] }),
         rig = new ArenaCamera(maps[0]);
       g.state.phase = "fighting";
       for (let i = 0; i < 240; i++) {

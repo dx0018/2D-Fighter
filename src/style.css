@@ -670,7 +670,7 @@ html[lang="en"] .skill-slot b {
 }
 .fighter-choices {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(min(130px, 100%), 1fr));
   gap: 12px;
 }
 .fighter-card {

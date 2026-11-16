@@ -9,7 +9,7 @@ const tick = (g, t, input = [{}, {}]) => {
     g.step(Math.min(1 / 120, t - i), input);
 };
 function match() {
-  const g = new Game({ characters, map: maps[0] });
+  const g = new Game({ characters: characters.slice(0, 2), map: maps[0] });
   g.state.phase = "fighting";
   g.state.fighters[0].x = -3;
   g.state.fighters[1].x = 3;

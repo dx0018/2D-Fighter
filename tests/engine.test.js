@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { Game } from "../src/game/engine.js";
 import { characters, maps } from "../src/config/content.js";
 const create = (options = {}) =>
-  new Game({ characters, map: maps[0], ...options });
+  new Game({ characters: characters.slice(0, 2), map: maps[0], ...options });
 function advance(game, seconds, inputs = [{}, {}]) {
   for (let elapsed = 0; elapsed < seconds - 1e-7; elapsed += 1 / 60)
     game.step(Math.min(1 / 60, seconds - elapsed), inputs);
@@ -17,8 +17,8 @@ function close(game, distance = 1.7) {
   game.state.fighters[1].x = distance / 2;
 }
 
-test("configuration exposes two distinct kits and three complete maps", () => {
-  assert.equal(characters.length, 2);
+test("configuration exposes distinct kits and three complete maps", () => {
+  assert.ok(characters.length >= 3);
   assert.notEqual(
     characters[0].moves.skill.kind,
     characters[1].moves.skill.kind,

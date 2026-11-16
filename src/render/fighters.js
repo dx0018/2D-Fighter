@@ -7,52 +7,13 @@ import {
   curve,
   ring,
   surface,
-  noiseTexture,
   batchRigid,
 } from "./primitives.js";
-import { makeChain, bindLimbs } from "./rig.js";
+import { bindLimbs } from "./rig.js";
 
-function rig(type) {
-  const root = new THREE.Group(),
-    body = new THREE.Group(),
-    head = new THREE.Group();
-  root.add(body);
-  body.add(head);
-  head.position.y = type === "po" ? 2.1 : 2.21;
-  return {
-    type,
-    root,
-    body,
-    head,
-    baseHead: head.position.y,
-    hipHeight: 0.82,
-    bones: [],
-    limbGeometries: [],
-    arms: [],
-    legs: [],
-    eyes: [],
-    pupils: [],
-    materials: [],
-  };
-}
-function skin(m, color, plush = false) {
-  const mat = new THREE.MeshStandardMaterial({
-    color,
-    roughness: plush ? 0.76 : 0.43,
-    metalness: 0,
-    envMapIntensity: 0.65,
-  });
-  if (plush) {
-    mat.bumpMap = noiseTexture();
-    mat.bumpScale = 0.009;
-  }
-  m.materials.push(mat);
-  return mat;
-}
-function silhouette(object) {
-  object.userData.silhouette = true;
-  return object;
-}
+import { rig, skin, silhouette, arms, legs } from "./fighter-rig.js";
+import { naruto } from "./naruto.js";
+
 function facePatch(g, mat, rx, ry, cy, depth) {
   const positions = [0, cy, depth(0, cy)],
     uv = [0.5, 0.5],
@@ -120,57 +81,6 @@ function torso(m, mat) {
     return new THREE.Vector2(bodyRadius(y), y);
   });
   silhouette(mesh(m.body, new THREE.LatheGeometry(points, 40), mat));
-}
-function arms(m, material, handMat) {
-  for (const side of [-1, 1]) {
-    const shoulder = [side * 0.55, m.type === "po" ? 1.49 : 1.56, 0],
-      chain = makeChain(m, m.body, shoulder, 0.52, 0.48, 0.155, material);
-    const hand = new THREE.Group();
-    m.root.add(hand);
-    silhouette(
-      ball(
-        hand,
-        handMat,
-        [0, 0, 0],
-        m.type === "po" ? [0.22, 0.24, 0.22] : [0.255, 0.24, 0.25],
-      ),
-    );
-    if (m.type === "po")
-      ball(hand, handMat, [-side * 0.16, -0.03, 0.06], [0.1, 0.13, 0.1]);
-    m.arms.push({
-      ...chain,
-      hand,
-      side,
-      shoulder: new THREE.Vector3(...shoulder),
-    });
-  }
-}
-function legs(m, material, shoeMat) {
-  for (const side of [-1, 1]) {
-    const chain = makeChain(
-      m,
-      m.root,
-      [side * 0.29, 0.82, 0],
-      0.43,
-      0.42,
-      0.18,
-      material,
-    );
-    const foot = silhouette(
-      ball(
-        m.root,
-        shoeMat,
-        [side * 0.29, 0.19, 0.13],
-        m.type === "po" ? [0.3, 0.2, 0.41] : [0.33, 0.19, 0.43],
-      ),
-    );
-    m.legs.push({
-      ...chain,
-      foot,
-      side,
-      footHeight: m.type === "po" ? 0.2 : 0.19,
-    });
-  }
 }
 function eye(m, side, { x = 0.19, y = 0.28, z = 0.74, white = true } = {}) {
   const g = new THREE.Group();
@@ -440,6 +350,8 @@ function po() {
 const builders = new Map([
   ["robot-cat", doraemon],
   ["antenna", po],
+  ["ninja", naruto],
+  ["ninja", naruto],
 ]);
 export const registerFighterModel = (style, builder) =>
   builders.set(style, builder);
@@ -447,9 +359,13 @@ export function makeFighter(character) {
   const m = (builders.get(character.bodyStyle) || doraemon)(character);
   if (!m.bones) return m;
   bindLimbs(m);
-  batchRigid(m.head, [...m.eyes, m.smile, m.mouth, m.antenna].filter(Boolean));
+  batchRigid(
+    m.head,
+    [...m.eyes, m.smile, m.mouth, m.antenna, m.headbandTies].filter(Boolean),
+  );
   batchRigid(m.body, [m.head]);
-  for (const arm of m.arms) batchRigid(arm.hand, [m.cannon].filter(Boolean));
+  for (const arm of m.arms)
+    batchRigid(arm.hand, [m.cannon, m.rasengan].filter(Boolean));
   m.root.traverse((o) => {
     if (o.isMesh && !o.isSkinnedMesh) {
       o.castShadow = !!o.userData.silhouette;

@@ -14,7 +14,7 @@ try {
   page.setDefaultTimeout(90000);
   await page.goto(process.env.TEST_URL || "http://localhost:5173");
   await page.click("[data-action=start]");
-  const files = await page.evaluate(async () => {
+  const files = await page.evaluate(async (only) => {
     const THREE = await import("/node_modules/three/build/three.module.js");
     const { RoomEnvironment } =
       await import("/node_modules/three/examples/jsm/environments/RoomEnvironment.js");
@@ -26,6 +26,7 @@ try {
       { Game } = await import("/src/game/engine.js");
     const files = [];
     for (const [i, c] of characters.entries()) {
+      if (only && c.id !== only) continue;
       const r = new THREE.WebGLRenderer({
         alpha: true,
         antialias: true,
@@ -77,17 +78,17 @@ try {
       r.dispose();
       r.forceContextLoss();
     }
-    for (const map of maps) {
+    for (const map of only ? [] : maps) {
       const host = document.createElement("div");
       host.style.cssText =
         "width:960px;height:540px;position:fixed;left:0;top:0";
       document.body.append(host);
       const arena = new ArenaRenderer(host, {
         map,
-        characters,
+        characters: characters.slice(0, 2),
         quality: "high",
       });
-      const game = new Game({ characters, map });
+      const game = new Game({ characters: characters.slice(0, 2), map });
       for (const f of arena.fighters) f.root.visible = false;
       for (const shadow of arena.shadows) shadow.visible = false;
       arena.update(game.state, 1);
@@ -99,7 +100,7 @@ try {
       host.remove();
     }
     return files;
-  });
+  }, process.env.PREVIEW_CHARACTER || null);
   for (const { name, data } of files) {
     await writeFile(
       `public/previews/${name}.webp`,

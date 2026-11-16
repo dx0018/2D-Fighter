@@ -1,5 +1,11 @@
 import * as THREE from "three";
 import { clamp } from "./primitives.js";
+import {
+  makeChakraOrb,
+  spinChakraOrb,
+  makeKunai,
+  rememberGeometry,
+} from "./ninja-effects.js";
 const rnd = (n) => {
   const x = Math.sin(n * 127.1 + 311.7) * 43758.5453;
   return x - Math.floor(x);
@@ -120,7 +126,7 @@ export class CombatEffects {
     return s;
   }
   create(e) {
-    const poolKey = `${e.type}:${e.color}:${!!e.heavy}`;
+    const poolKey = `${e.type}:${e.color}:${!!e.heavy}:${e.visual || ""}`;
     const cached = this.pool.get(poolKey)?.pop();
     if (cached) {
       this.pooledCount--;
@@ -141,6 +147,11 @@ export class CombatEffects {
       data.ring = this.mesh(g, "ring", color, 0.8);
       for (let i = 0; i < (e.heavy ? 28 : 16); i++)
         data.sparks.push(this.particle(g, "spark", i % 3 ? color : "#fff4c9"));
+      if (["bijuu", "rasengan"].includes(e.visual)) {
+        data.chakra = makeChakraOrb(e.visual);
+        g.add(data.chakra);
+        rememberGeometry(data, data.chakra);
+      }
     } else if (e.type === "cast") {
       data.halo = this.glow(g, color, 2, 0.35);
       for (let i = 0; i < 3; i++) {
@@ -185,6 +196,15 @@ export class CombatEffects {
       for (let i = 0; i < 8; i++)
         data.sparks.push(this.particle(g, "spark", color));
     } else {
+      if (e.type === "substitution") {
+        const log = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.22, 0.26, 0.95, 12),
+          new THREE.MeshStandardMaterial({ color: "#a77e50", roughness: 0.9 }),
+        );
+        g.add(log);
+        data.log = log;
+        rememberGeometry(data, log);
+      }
       data.ring = this.mesh(
         g,
         "ring",
@@ -217,6 +237,7 @@ export class CombatEffects {
       if (o.isInstancedMesh) o.dispose();
       if (o.material) o.material.dispose();
     });
+    d.extraGeometries?.forEach((geometry) => geometry.dispose());
   }
   update(state, clock) {
     const alive = new Set();
@@ -229,16 +250,31 @@ export class CombatEffects {
       )
         continue;
       alive.add(e.id);
-      const d = this.effects.get(e.id) || this.create(e),
+      const expectedKey = `${e.type}:${e.color}:${!!e.heavy}:${e.visual || ""}`;
+      let cached = this.effects.get(e.id);
+      if (cached && cached.poolKey !== expectedKey) {
+        this.remove(cached, true);
+        this.effects.delete(e.id);
+        cached = null;
+      }
+      const d = cached || this.create(e),
         a = clamp(1 - e.life / e.maxLife, 0, 1),
         fade = Math.pow(1 - a, 0.8);
       d.group.position.set(e.x, e.y, 0.35);
       if (e.type === "hit") {
+        if (d.chakra) {
+          spinChakraOrb(
+            d.chakra,
+            clock,
+            (e.visual === "bijuu" ? 1.25 : 0.6) * fade,
+          );
+          d.ring.scale.setScalar(0.5 + a * (e.visual === "bijuu" ? 5 : 2));
+        }
         d.core.scale.setScalar((e.heavy ? 1.4 : 0.85) * (1 - a * 0.75));
         d.core.rotation.z = a * 0.6;
         d.core.material.opacity = Math.max(0, 1 - a * 2.2);
         d.halo.material.opacity = fade * 0.6;
-        d.ring.scale.setScalar(0.3 + a * (e.heavy ? 2.1 : 1.3));
+        if (!d.chakra) d.ring.scale.setScalar(0.3 + a * (e.heavy ? 2.1 : 1.3));
         d.ring.material.opacity = fade * 0.7;
         d.sparks.forEach((p, i) => {
           const angle =
@@ -381,6 +417,11 @@ export class CombatEffects {
           p.material.opacity = fade * 0.6;
         });
       } else {
+        if (d.log) {
+          d.log.rotation.set(a * 0.6, clock * 0.7, a * 0.8);
+          d.log.position.y = -0.1 - a * 0.5;
+          d.log.scale.setScalar(1 - Math.max(0, a - 0.65) * 2);
+        }
         d.ring.scale.setScalar(0.25 + a * (e.type === "break" ? 2.2 : 1.7));
         d.ring.position.y = -e.y + 0.04;
         d.ring.material.opacity = fade * 0.35;
@@ -429,6 +470,28 @@ export class CombatEffects {
       if (!p) return;
       d.group.position.set(p.x, p.y, 0);
       d.group.rotation.set(0, 0, Math.atan2(p.vy || 0, p.vx ?? p.direction));
+      const special = ["bijuu", "kunai"].includes(p.move?.visual)
+        ? p.move.visual
+        : null;
+      const normalParts = [d.core, d.shell, d.glow, ...d.rings];
+      normalParts.forEach((object) => {
+        object.visible = !special;
+      });
+      d.specials ??= new Map();
+      if (special && !d.specials.has(special)) {
+        const object =
+          special === "bijuu" ? makeChakraOrb("bijuu") : makeKunai();
+        d.specials.set(special, object);
+        d.group.add(object);
+        rememberGeometry(d, object);
+      }
+      for (const [kind, object] of d.specials)
+        object.visible = special === kind;
+      if (special) {
+        const object = d.specials.get(special);
+        if (special === "bijuu") spinChakraOrb(object, clock, p.radius);
+        return;
+      }
       d.shell.material.color.set(p.color);
       d.glow.material.color.set(p.color);
       const r = p.radius;

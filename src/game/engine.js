@@ -258,8 +258,11 @@ export class Game {
           move.kind === "dash" &&
           cast.elapsed >= move.windup &&
           cast.elapsed < move.windup + move.active
-        )
+        ) {
           f.vx = cast.facing * move.dashSpeed;
+          if (!f.grounded && move.diveSpeed)
+            f.vy = Math.min(f.vy, -move.diveSpeed);
+        }
         if (
           move.movement &&
           cast.elapsed >= move.windup &&
@@ -367,6 +370,7 @@ export class Game {
       key,
       move,
       context: move.context,
+      visual: move.visual,
       elapsed: 0,
       facing,
       released: false,
@@ -381,6 +385,7 @@ export class Game {
       color: move.color,
       name: move.name,
       duration: move.windup,
+      visual: move.visual,
       ultimate: key === "ultimate",
       context: move.context,
     });
@@ -392,14 +397,15 @@ export class Game {
           : f.crouching
             ? 0.55
             : (move.hitY ?? 1.4);
-    this.effect("cast", f.x, f.y + chargeHeight, move.color, move.windup, {
-      owner: f.id,
-      kind: move.kind,
-      castId: f.currentMove.id,
-      height: chargeHeight,
-      originX: move.kind === "beam" ? (move.originX ?? 0.8) : undefined,
-      ultimate: key === "ultimate",
-    });
+    if (!move.visual || !["rasengan", "bijuu"].includes(move.visual))
+      this.effect("cast", f.x, f.y + chargeHeight, move.color, move.windup, {
+        owner: f.id,
+        kind: move.kind,
+        castId: f.currentMove.id,
+        height: chargeHeight,
+        originX: move.kind === "beam" ? (move.originX ?? 0.8) : undefined,
+        ultimate: key === "ultimate",
+      });
   }
   release(f, cast) {
     const move = cast.move;
@@ -409,8 +415,13 @@ export class Game {
       move: cast.key,
       ultimate: cast.key === "ultimate",
       context: cast.context,
+      visual: move.visual,
     });
     if (move.evade) f.invulnerable = Math.max(f.invulnerable, move.evade);
+    if (move.substitution)
+      this.effect("substitution", f.x, f.y + 0.75, "#e9e1d3", 0.6, {
+        direction: cast.facing,
+      });
     if (move.kind === "projectile") {
       this.state.projectiles.push({
         id: this.nextId++,
@@ -465,7 +476,7 @@ export class Game {
         f.y + (move.hitY ?? 1.2),
         move.color,
         0.32,
-        { direction: cast.facing, owner: f.id },
+        { direction: cast.facing, owner: f.id, visual: move.visual },
       );
   }
   collectStrike(f, cast, contacts) {
@@ -634,7 +645,12 @@ export class Game {
       target.y + Math.min(fighterHeight(target) - 0.2, move.hitY ?? 1.35),
       move.color,
       0.32,
-      { damage: move.damage, heavy: move.damage >= 30, direction },
+      {
+        damage: move.damage,
+        heavy: move.damage >= 30,
+        direction,
+        visual: move.visual,
+      },
     );
     this.event("hit", {
       player: attacker.id,
@@ -643,6 +659,7 @@ export class Game {
       heavy: move.damage >= 30,
       color: move.color,
       combo: attacker.combo,
+      visual: move.visual,
       kind: move.kind,
     });
   }
