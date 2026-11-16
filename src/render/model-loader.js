@@ -3,6 +3,8 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { clone as cloneSkeleton } from "three/addons/utils/SkeletonUtils.js";
 import { makeChakraOrb, makeKuramaAura, setBijuuModel, attachBijuuModel } from "./ninja-effects.js";
 
+import { makeKuramaSummon } from "./kurama-summon.js";
+
 const cache = new Map();
 const assetBase = import.meta.env?.BASE_URL || "/";
 const load = (url) => {
@@ -227,7 +229,10 @@ export async function loadFighterModel(character) {
       setBijuuModel(bomb.scene);
       attachBijuuModel(m.bijuu);
       const head = fox.scene.clone(true);
-      head.position.set(0, 0.55, 0);
+      // Anchor the lowest part of the imported mesh to the ground.
+      head.updateMatrixWorld(true);
+      const foxBounds = new THREE.Box3().setFromObject(head, true);
+      head.position.set(0, -foxBounds.min.y, 0);
       head.scale.setScalar(1);
       head.traverse((node) => {
         if (!node.isMesh) return;
@@ -273,6 +278,8 @@ export async function loadFighterModel(character) {
       m.kurama.userData.headFallback.visible = false;
       m.kurama.userData.modelHead = head;
       m.kurama.userData.userModel = true;
+      m.kuramaSummon = makeKuramaSummon();
+      m.kurama.add(m.kuramaSummon.root);
       for (const tail of m.kurama.userData.tails) tail.visible = false;
     } catch (error) {
       console.warn("Using the built-in Kurama head:", error);

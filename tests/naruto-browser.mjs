@@ -169,6 +169,11 @@ try {
                 .getSize(new T.Vector3()).y
             : 0,
           kuramaHeadFallback: actor.kurama.userData.headFallback.visible,
+          foxGround: new T.Box3().setFromObject(actor.kurama.userData.modelHead, true).min.y,
+          foxScale: actor.kurama.scale.toArray(),
+          summonVisible: actor.kuramaSummon.root.visible,
+          foxOpacity: actor.kurama.userData.modelHead.children.find(n => n.isMesh)?.material.opacity,
+          smokeOpacity: actor.kuramaSummon.smokeMaterial.uniforms.opacity.value,
           handsToBijuu: hands,
           feet: [
             new T.Box3().setFromObject(
@@ -195,7 +200,14 @@ try {
   await snap("air", "air");
   const r = await snap("rasengan", "rasengan", 0.32);
   assert.equal(r.rasengan, true);
+  const appearing = await snap("bijuu-summon", "bijuu", 0.2);
+  assert.ok(appearing.foxOpacity > 0 && appearing.foxOpacity < 0.88);
+  assert.ok(appearing.smokeOpacity > 0.1);
   const b = await snap("bijuu-charge", "bijuu", 0.8);
+  assert.deepEqual(appearing.foxScale, [1, 1, 1]);
+  assert.deepEqual(b.foxScale, appearing.foxScale);
+  assert.ok(Math.abs(b.foxGround - 0.012) < 0.02);
+  assert.equal(b.summonVisible, true);
   assert.equal(b.bijuu, true);
   assert.equal(b.kurama, true);
   assert.equal(b.kuramaTails, 9);
@@ -210,12 +222,25 @@ try {
   assert.ok(Math.abs(Math.min(...mirrored.handsToBijuu) - 0.52) < 0.02);
   assert.equal(mirrored.userKurama, true);
   assert.ok(mirrored.foxForward[0] < -0.999 && Math.abs(mirrored.foxForward[2]) < 0.001);
+  const airborneFoxGround = await page.evaluate(async () => {
+    const T = await import("/node_modules/three/build/three.module.js");
+    const a = __POCKET__.arena, g = __POCKET__.game;
+    g.state.fighters[0].y = 2;
+    a.update(g.state, 0);
+    return new T.Box3().setFromObject(a.fighters[0].kurama.userData.modelHead, true).min.y;
+  });
+  assert.ok(Math.abs(airborneFoxGround - 0.012) < 0.02);
   const shot = await snap("bijuu-release", "bijuu", 1.02);
   assert.ok(shot.projectiles.includes("bijuu"));
   const sub = await snap("substitution", "substitution", 0.2);
   assert.ok(sub.effects.includes("substitution"));
   assert.ok(sub.projectiles.includes("kunai"));
-  await snap("bijuu-impact", "bijuu", 1.2);
+  const dissolving = await snap("bijuu-impact", "bijuu", 1.2);
+  assert.deepEqual(dissolving.foxScale, [1, 1, 1]);
+  assert.ok(dissolving.foxOpacity > 0 && dissolving.foxOpacity < b.foxOpacity);
+  assert.ok(dissolving.smokeOpacity > 0.01);
+  const cancelled = await snap("bijuu-cancelled");
+  assert.equal(cancelled.kurama, false);
   console.log("Naruto render metrics:", { idle, r, charge: b, shot });
   await click("pause");
   await click("reselect");

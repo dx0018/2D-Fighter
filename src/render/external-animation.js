@@ -1,3 +1,4 @@
+import { updateKuramaSummon } from "./kurama-summon.js";
 import * as THREE from "three";
 import { clamp, damp } from "./primitives.js";
 import { solveTwoBone } from "./rig.js";
@@ -247,15 +248,17 @@ function animateKurama(m, f, cast, clock) {
         ? 1
         : 1 - clamp((elapsed - windup - cast.move.active) / 0.32, 0, 1)
       : 0,
-    charge = clamp(elapsed / windup, 0, 1);
+    reveal = THREE.MathUtils.smoothstep(elapsed, 0.08, 0.38);
   m.kurama.visible = fade > 0.01;
   if (!m.kurama.visible) return;
-  m.kurama.position.set(-(f.facing || 1) * 0.35, 0.06, -1.4);
+  m.kurama.position.set(-(f.facing || 1) * 0.35, 0.012 - Math.max(0, f.y), -1.4);
   // The fox faces along the combat lane, independent of the actor’s camera-facing stance.
   m.kurama.rotation.set(0, (cast?.facing || f.facing || 1) * Math.PI / 2, 0);
-  m.kurama.scale.setScalar((0.98 + charge * 0.12) * (0.94 + Math.sin(clock * 5) * 0.025));
+  m.kurama.scale.setScalar(1);
   for (const { material, opacity } of m.kurama.userData.opacityTargets)
-    material.opacity = opacity * fade;
+    material.opacity = opacity * fade * reveal;
+  if (m.kuramaSummon)
+    updateKuramaSummon(m.kuramaSummon, elapsed, windup, cast.move.active, fade, m.kurama.rotation.y);
   m.kurama.userData.tails.forEach((tail, index) => {
     tail.rotation.x = Math.sin(clock * 3.2 + index * 0.48) * 0.075;
     tail.rotation.y = Math.sin(clock * 2.4 + index * 0.37) * 0.08;
