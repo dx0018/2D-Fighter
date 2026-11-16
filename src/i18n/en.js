@@ -5,9 +5,20 @@ export const english = {
   关闭模型授权: "Close model credits",
   "鸣人、哆啦A梦和小波的模型由以下创作者提供，依照 CC BY 4.0 保留署名。部分模型为本游戏调整了比例、颜色、骨架和配件。":
     "Naruto, Doraemon and Po's models are provided by the creators below and credited under CC BY 4.0. Some were resized, recolored, rigged or fitted with accessories for this game.",
+  "鸣人、哆啦A梦和小波的模型由以下创作者提供，依照 CC BY 4.0 保留署名。九尾狐头部使用 CC0 模型，并同时保留骨架与 glTF 转换作者的署名。部分模型为本游戏调整了比例、颜色、骨架和配件。":
+    "Naruto, Doraemon and Po's models are credited below under CC BY 4.0. Kurama's fox head comes from a CC0 model, with attribution retained for its rigging and glTF conversion. Some assets were resized, recolored, rigged or fitted with accessories for this game.",
   "哆啦A梦 · Doraemon": "Doraemon",
   "天线宝宝小波 · Teletubby Po": "Po · Teletubbies",
   "漩涡鸣人 · Naruto Rigged (HatchXR)": "Naruto · Naruto Rigged (HatchXR)",
+  "九尾狐 · Kurama Fox Head": "Kurama · Fox head",
+  "模型：": "Model: ",
+  " · CC0 1.0；骨架与动画：": " · CC0 1.0; rigging & animation: ",
+  " · CC BY 4.0；glTF 转换：": " · CC BY 4.0; glTF conversion: ",
+  " · CC BY 4.0": " · CC BY 4.0",
+  "仅提取并放大狐狸头部，保留原配色并加入查克拉发光":
+    "Fox head extracted and enlarged, retaining its original colors with chakra glow.",
+  "狐狸头部单独提取并放大，加入眼部高光与查克拉发光特效":
+    "Fox head isolated and enlarged with eye highlights and chakra glow.",
   "查看模型来源 ↗": "View model source ↗",
   "查看原始模型 ↗": "View original model ↗",
   "CC BY 4.0 · 已重新绑定游戏骨架并调整比例":

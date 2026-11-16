@@ -4,6 +4,7 @@ import { clone as cloneSkeleton } from "three/addons/utils/SkeletonUtils.js";
 import { makeChakraOrb, makeKuramaAura } from "./ninja-effects.js";
 
 const cache = new Map();
+const assetBase = import.meta.env?.BASE_URL || "/";
 const load = (url) => {
   if (!cache.has(url))
     cache.set(url, new GLTFLoader().loadAsync(url).catch((error) => {
@@ -218,6 +219,95 @@ export async function loadFighterModel(character) {
     m.bijuu = makeChakraOrb("bijuu");
     m.kurama = makeKuramaAura();
     m.kurama.visible = false;
+    try {
+      const fox = await load(`${assetBase}models/kurama-head.glb`);
+      const head = fox.scene.clone(true);
+      head.position.set(0, 2.2, 0.3);
+      head.scale.setScalar(1.4);
+      head.traverse((node) => {
+        if (!node.isMesh) return;
+        node.castShadow = false;
+        node.receiveShadow = false;
+        node.frustumCulled = false;
+        node.renderOrder = 2;
+        const originals = Array.isArray(node.material)
+          ? node.material
+          : [node.material];
+        const materials = originals.map((base) => {
+          const material = base.clone();
+          material.transparent = true;
+          material.depthWrite = false;
+          material.emissive?.set("#ff5b1a");
+          if (material.emissive)
+            material.emissiveIntensity = Math.max(
+              material.emissiveIntensity,
+              0.38,
+            );
+          m.kurama.userData.opacityTargets.push({
+            material,
+            opacity: material.opacity,
+          });
+          return material;
+        });
+        node.material = Array.isArray(node.material) ? materials : materials[0];
+      });
+      const eyeSocket = new THREE.MeshStandardMaterial({
+        color: "#3b1620",
+        emissive: "#8c1b28",
+        emissiveIntensity: 0.8,
+        roughness: 0.42,
+        transparent: true,
+        depthWrite: false,
+      });
+      const eye = new THREE.MeshBasicMaterial({
+        color: "#ff4336",
+        toneMapped: false,
+        transparent: true,
+        depthWrite: false,
+      });
+      const eyeGlow = new THREE.MeshBasicMaterial({
+        color: "#fff1ae",
+        toneMapped: false,
+        transparent: true,
+        depthWrite: false,
+      });
+      m.materials.push(eyeSocket, eye, eyeGlow);
+      for (const side of [-1, 1]) {
+        const socket = new THREE.Mesh(
+          new THREE.SphereGeometry(0.085, 10, 8),
+          eyeSocket,
+        );
+        socket.name = `kurama-eye-socket-${side}`;
+        socket.position.set(side * 0.29, 0.1, -0.03);
+        socket.scale.set(0.48, 0.78, 0.52);
+        socket.renderOrder = 3;
+        const iris = new THREE.Mesh(
+          new THREE.SphereGeometry(0.052, 10, 8),
+          eye,
+        );
+        iris.name = `kurama-eye-${side}`;
+        iris.position.set(side * 0.315, 0.1, -0.015);
+        iris.scale.set(0.42, 0.72, 0.4);
+        iris.renderOrder = 4;
+        const glint = new THREE.Mesh(
+          new THREE.SphereGeometry(0.016, 8, 6),
+          eyeGlow,
+        );
+        glint.position.set(side * 0.33, 0.12, 0);
+        glint.renderOrder = 5;
+        head.add(socket, iris, glint);
+      }
+      for (const material of [eyeSocket, eye, eyeGlow])
+        m.kurama.userData.opacityTargets.push({
+          material,
+          opacity: material.opacity,
+        });
+      m.kurama.add(head);
+      m.kurama.userData.headFallback.visible = false;
+      m.kurama.userData.modelHead = head;
+    } catch (error) {
+      console.warn("Using the built-in Kurama head:", error);
+    }
     m.chakraCloak = new THREE.Mesh(
       new THREE.SphereGeometry(1, 18, 12),
       new THREE.MeshBasicMaterial({

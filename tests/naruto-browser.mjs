@@ -156,6 +156,13 @@ try {
           bijuu: a.fighters[0].bijuu.visible,
           kurama: actor.kurama.visible,
           kuramaTails: actor.kurama.userData.tails.length,
+          kuramaHead: !!actor.kurama.userData.modelHead,
+          kuramaHeadHeight: actor.kurama.userData.modelHead
+            ? new T.Box3()
+                .setFromObject(actor.kurama.userData.modelHead, true)
+                .getSize(new T.Vector3()).y
+            : 0,
+          kuramaHeadFallback: actor.kurama.userData.headFallback.visible,
           handsToBijuu: hands,
           feet: [
             new T.Box3().setFromObject(
@@ -186,6 +193,9 @@ try {
   assert.equal(b.bijuu, true);
   assert.equal(b.kurama, true);
   assert.equal(b.kuramaTails, 9);
+  assert.equal(b.kuramaHead, true);
+  assert.ok(b.kuramaHeadHeight > 2);
+  assert.equal(b.kuramaHeadFallback, false);
   assert.ok(b.handsToBijuu.every((distance) => distance < 0.5));
   const shot = await snap("bijuu-release", "bijuu", 1.02);
   assert.ok(shot.projectiles.includes("bijuu"));
@@ -251,6 +261,14 @@ try {
     await page.evaluate(() => __POCKET__.game.state.fighters[1].hp),
     100,
   );
+  await click("home");
+  await click("credits");
+  const credits = await page.locator(".model-credits").textContent();
+  assert.match(credits, /Kurama/);
+  assert.match(credits, /PixelMannen/);
+  assert.match(credits, /CC0 1\.0/);
+  assert.match(credits, /glTF conversion/);
+  await click("close-credits");
   const compatible = await browser.newPage({
     viewport: { width: 390, height: 844 },
   });

@@ -44,6 +44,7 @@ export function makeChakraOrb(kind = "rasengan") {
 
 export function makeKuramaAura() {
   const group = new THREE.Group(),
+    headFallback = new THREE.Group(),
     opacityTargets = [],
     tails = [],
     aura = new THREE.MeshStandardMaterial({
@@ -99,21 +100,33 @@ export function makeKuramaAura() {
   };
   const sphere = new THREE.SphereGeometry(1, 16, 12),
     cone = new THREE.ConeGeometry(1, 1, 7);
-  add(sphere, aura, [0, 1.2, -0.12], [0.53, 0.85, 0.34]);
-  add(sphere, aura, [0, 2.23, 0.18], [0.58, 0.52, 0.4]);
-  add(sphere, gold, [0, 2.12, 0.53], [0.32, 0.19, 0.2]);
-  add(sphere, ink, [0, 2.2, 0.695], [0.085, 0.065, 0.045]);
+  group.add(headFallback);
+  add(sphere, aura, [0, 2.23, 0.18], [0.58, 0.52, 0.4], headFallback);
+  add(sphere, gold, [0, 2.12, 0.53], [0.32, 0.19, 0.2], headFallback);
+  add(sphere, ink, [0, 2.2, 0.695], [0.085, 0.065, 0.045], headFallback);
   for (const side of [-1, 1]) {
-    const ear = add(cone, aura, [side * 0.36, 2.62, 0.1], [0.23, 0.58, 0.19]);
+    const ear = add(
+      cone,
+      aura,
+      [side * 0.36, 2.62, 0.1],
+      [0.23, 0.58, 0.19],
+      headFallback,
+    );
     ear.rotation.z = -side * 0.32;
-    add(sphere, red, [side * 0.2, 2.34, 0.51], [0.105, 0.062, 0.035]);
-    add(sphere, ink, [side * 0.2, 2.35, 0.54], [0.032, 0.046, 0.018]);
+    add(sphere, red, [side * 0.2, 2.34, 0.51], [0.105, 0.062, 0.035], headFallback);
+    add(sphere, ink, [side * 0.2, 2.35, 0.54], [0.032, 0.046, 0.018], headFallback);
     const cheek = new THREE.CatmullRomCurve3([
       new THREE.Vector3(side * 0.26, 2.11, 0.58),
       new THREE.Vector3(side * 0.42, 2.1, 0.55),
       new THREE.Vector3(side * 0.49, 2.05, 0.48),
     ]);
-    add(new THREE.TubeGeometry(cheek, 8, 0.018, 5, false), ink, [0, 0, 0], [1, 1, 1]);
+    add(
+      new THREE.TubeGeometry(cheek, 8, 0.018, 5, false),
+      ink,
+      [0, 0, 0],
+      [1, 1, 1],
+      headFallback,
+    );
   }
 
   const up = new THREE.Vector3(0, 1, 0);
@@ -146,6 +159,8 @@ export function makeKuramaAura() {
     group.add(tail);
     tails.push(tail);
   }
+  headFallback.visible = true;
+  group.userData.headFallback = headFallback;
   group.userData.opacityTargets = opacityTargets;
   group.userData.tails = tails;
   return group;
