@@ -36,6 +36,8 @@ function animationName(m, f, walking, airborne, crouch, hurt, victory) {
     clips = m.clips || {};
   if (rig === "mixamo") {
     if (victory && f.action === "victory") return [clips.victory, true];
+    if (f.currentMove?.key === "attack" && f.grounded && !f.crouching)
+      return [clips.attack, true];
     if (airborne) return [clips.jump, true];
     return [walking ? clips.walk : clips.idle, false];
   }
@@ -56,9 +58,9 @@ function aimArm(m, upper, lower, hand, target, bendSide = 1) {
     upperLength = Math.max(0.08, origin.distanceTo(elbow)),
     lowerLength = Math.max(0.08, elbow.distanceTo(wrist)),
     pole = new THREE.Vector3(
-      origin.x + bendSide * 0.15 + m.forward.x * 0.5,
-      origin.y + (target.y < origin.y ? 0.8 : -0.35),
-      origin.z + m.forward.z * 0.65,
+      bendSide * 0.15 + m.forward.x * 0.5,
+      target.y < origin.y ? 0.8 : -0.35,
+      m.forward.z * 0.65,
     ),
     jointTarget = new THREE.Vector3(),
     endTarget = new THREE.Vector3();
@@ -188,13 +190,13 @@ function poseAim(m, f, cast, walking) {
       : pose === "pulse"
         ? [[0.85, 1.55, 0.2], [-0.85, 1.55, 0.2]]
         : pose === "bijuu"
-          ? [[0.25, 1.75, 0.35], [-0.25, 1.75, 0.35]]
+          ? [[0.25, 1.7, 0.3], [-0.25, 1.7, 0.3]]
           : pose === "low"
             ? [[0.55, 0.43, 0.28], [-0.42, 1.05, 0.16]]
             : pose === "cannon"
               ? [[0.92, 1.62, 0.18], [-0.42, 1.1, 0.24]]
               : pose === "rasengan"
-                ? [[0.63, 1.32, 0.4], [0.18, 1.5, 0.37]]
+                ? [[0.5, 1.62, 0.34], [0.18, 1.52, 0.32]]
                 : [[0.92, 1.45, 0.3], [-0.25, 1.24, 0.36]];
   m.visual.updateMatrixWorld(true);
   const selected = bilateral ? [0, 1] : [front];
@@ -203,6 +205,18 @@ function poseAim(m, f, cast, walking) {
     local.z *= m.frontAxis;
     let target = m.visual.localToWorld(local);
     if (cast?.key === "attack" && rig === "mixamo") continue;
+    if (pose === "bijuu") {
+      const hand = names[index][2],
+        charge = clamp(
+          (cast?.elapsed || 0) / Math.max(0.08, (cast?.move.windup || 0.9) * 0.58),
+          0,
+          1,
+        );
+      if (hand) {
+        hand.getWorldPosition(m.worldPosition);
+        target = m.worldPosition.clone().lerp(target, charge);
+      }
+    }
     if (cast?.key === "attack") {
       const hand = names[index][2];
       if (hand) {
@@ -222,6 +236,30 @@ function poseAim(m, f, cast, walking) {
     }
     aimArm(m, ...names[index], target, index === 0 ? -1 : 1);
   }
+}
+
+function animateKurama(m, f, cast, clock) {
+  if (!m.kurama) return;
+  const live = cast?.move.visual === "bijuu",
+    windup = cast?.move.windup || 1,
+    elapsed = cast?.elapsed || 0,
+    fade = live
+      ? elapsed < windup + cast.move.active
+        ? 1
+        : 1 - clamp((elapsed - windup - cast.move.active) / 0.32, 0, 1)
+      : 0,
+    charge = clamp(elapsed / windup, 0, 1);
+  m.kurama.visible = fade > 0.01;
+  if (!m.kurama.visible) return;
+  m.kurama.position.set(-(f.facing || 1) * 1.28, 0.06, 0.18);
+  m.kurama.quaternion.copy(m.visual.quaternion);
+  m.kurama.scale.setScalar((0.98 + charge * 0.12) * (0.94 + Math.sin(clock * 5) * 0.025));
+  for (const { material, opacity } of m.kurama.userData.opacityTargets)
+    material.opacity = opacity * fade;
+  m.kurama.userData.tails.forEach((tail, index) => {
+    tail.rotation.x = Math.sin(clock * 3.2 + index * 0.48) * 0.075;
+    tail.rotation.y = Math.sin(clock * 2.4 + index * 0.37) * 0.08;
+  });
 }
 
 function updateDetails(m, f, dt, clock) {
@@ -248,8 +286,8 @@ function updateDetails(m, f, dt, clock) {
   if (m.bijuu) {
     m.bijuu.visible = visual === "bijuu" && elapsed < windup;
     if (m.bijuu.visible) {
-      m.bijuu.position.set(face * 1.02, 1.65, 0.18);
-      spinChakraOrb(m.bijuu, clock, 0.1 + 0.46 * Math.min(1, elapsed / Math.max(0.001, windup)));
+      m.bijuu.position.set(face * 0.22, 1.7, 0.2);
+      spinChakraOrb(m.bijuu, clock, 0.06 + 0.22 * Math.min(1, elapsed / Math.max(0.001, windup)));
     }
     m.chakraCloak.visible = visual === "bijuu";
     m.chakraCloak.material.opacity = 0.035 + (elapsed / Math.max(0.001, windup)) * 0.055;
@@ -314,7 +352,10 @@ export function animateExternal(m, f, dt, clock, hitstop = 0) {
     walking = !airborne && !f.crouching && (f.action === "walk" || !!f.currentMove?.move.recoveryMovement),
     crouch = !!f.crouching,
     hurt = f.action === "hurt" || f.stun > 0,
-    victory = f.action === "victory";
+    victory = f.action === "victory",
+    bijuuCharge = f.currentMove?.move.visual === "bijuu"
+      ? clamp((f.currentMove.elapsed || 0) / Math.max(0.08, f.currentMove.move.windup || 0.95), 0, 1)
+      : 0;
   m.clock += dt;
   m.crouchBlend = damp(m.crouchBlend || 0, crouch ? 1 : 0, 18, dt);
   const targetYaw = m.visual.userData.baseYaw + face * 0.84;
@@ -329,18 +370,34 @@ export function animateExternal(m, f, dt, clock, hitstop = 0) {
     const hip = rest(m.hips);
     if (hip) m.hips.position.copy(hip.position);
   }
-  if (hurt && m.chest) {
+  if (
+    m.character.model.rig !== "doraemon" &&
+    m.chest &&
+    (hurt || m.crouchBlend > 0.001 || bijuuCharge > 0)
+  ) {
     const chest = rest(m.chest);
     if (chest)
-      m.chest.quaternion.copy(chest.quaternion).multiply(
-        new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, Math.sin(clock * 24) * 0.08, "XYZ")),
-      );
+      m.chest.quaternion
+        .copy(chest.quaternion)
+        .multiply(
+          new THREE.Quaternion().setFromEuler(
+            new THREE.Euler(
+              m.frontAxis * (m.crouchBlend * 0.12 + bijuuCharge * 0.12),
+              0,
+              hurt ? Math.sin(clock * 24) * 0.08 : 0,
+              "XYZ",
+            ),
+          ),
+        );
   }
   m.root.position.set(f.x, Math.max(0, f.y), 0);
   m.root.updateMatrixWorld(true);
   m.forward.set(0, 0, m.frontAxis).applyQuaternion(m.visual.quaternion).normalize();
-  m.visual.scale.y = damp(m.visual.scale.y, 1 - m.crouchBlend * 0.15, 18, dt);
+  const squatScale = damp(m.visual.scale.y, 1 - m.crouchBlend * 0.14, 18, dt),
+    widthScale = 1 + (1 - squatScale) * 0.32;
+  m.visual.scale.set(widthScale, squatScale, widthScale);
   poseAim(m, f, f.currentMove, walking);
+  animateKurama(m, f, f.currentMove, clock);
   updateDetails(m, f, dt, clock);
   if (m.character.model.rig === "doraemon") {
     const moving = Math.abs(f.vx) > 0.15;

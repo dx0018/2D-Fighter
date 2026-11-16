@@ -113,6 +113,7 @@ try {
       async ({ kind, elapsed }) => {
         const g = __POCKET__.game,
           a = __POCKET__.arena;
+        const actor = a.fighters[0];
         g.reset();
         g.state.phase = "fighting";
         g.state.objects = [];
@@ -142,11 +143,20 @@ try {
         a.renderer.render = render;
         a.update(g.state, 0);
         const T = await import("/node_modules/three/build/three.module.js");
+        const orb = new T.Vector3();
+        actor.bijuu.getWorldPosition(orb);
+        const hands = [actor.bones.leftHand, actor.bones.rightHand].map((hand) => {
+          const position = hand.getWorldPosition(new T.Vector3());
+          return position.distanceTo(orb);
+        });
         return {
           calls: a.renderer.info.render.calls,
           triangles: a.renderer.info.render.triangles,
           rasengan: a.fighters[0].rasengan.visible,
           bijuu: a.fighters[0].bijuu.visible,
+          kurama: actor.kurama.visible,
+          kuramaTails: actor.kurama.userData.tails.length,
+          handsToBijuu: hands,
           feet: [
             new T.Box3().setFromObject(
               a.fighters[0].model || a.fighters[0].root,
@@ -174,6 +184,9 @@ try {
   assert.equal(r.rasengan, true);
   const b = await snap("bijuu-charge", "bijuu", 0.8);
   assert.equal(b.bijuu, true);
+  assert.equal(b.kurama, true);
+  assert.equal(b.kuramaTails, 9);
+  assert.ok(b.handsToBijuu.every((distance) => distance < 0.5));
   const shot = await snap("bijuu-release", "bijuu", 1.02);
   assert.ok(shot.projectiles.includes("bijuu"));
   const sub = await snap("substitution", "substitution", 0.2);

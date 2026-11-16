@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { clone as cloneSkeleton } from "three/addons/utils/SkeletonUtils.js";
-import { makeChakraOrb } from "./ninja-effects.js";
+import { makeChakraOrb, makeKuramaAura } from "./ninja-effects.js";
 
 const cache = new Map();
 const load = (url) => {
@@ -205,6 +205,8 @@ export async function loadFighterModel(character) {
       rightHand: ["mixamorigRightHand_035"],
       rootBone: ["_rootJoint"],
     })) m.bones[key] = findBone(actor, names);
+    m.chest = m.bones.chest;
+    m.head = m.bones.head;
     m.clips = {
       idle: "stand",
       walk: "walk",
@@ -214,6 +216,8 @@ export async function loadFighterModel(character) {
     };
     m.rasengan = makeChakraOrb("rasengan");
     m.bijuu = makeChakraOrb("bijuu");
+    m.kurama = makeKuramaAura();
+    m.kurama.visible = false;
     m.chakraCloak = new THREE.Mesh(
       new THREE.SphereGeometry(1, 18, 12),
       new THREE.MeshBasicMaterial({
@@ -226,7 +230,7 @@ export async function loadFighterModel(character) {
     );
     m.chakraCloak.scale.set(0.64, 1.15, 0.38);
     m.chakraCloak.position.set(0, 1.55, 0);
-    m.root.add(m.rasengan, m.bijuu, m.chakraCloak);
+    m.root.add(m.rasengan, m.bijuu, m.chakraCloak, m.kurama);
   } else if (character.model.rig === "teletubby") {
     for (const key of [
       "Pelvis",
