@@ -245,6 +245,22 @@ export async function loadFighterModel(character) {
           material.transparent = true;
           material.depthWrite = true;
           material.opacity = 0.88;
+          material.roughness = 0.92;
+          material.metalness = 0;
+          material.envMapIntensity = 0.35;
+          // Recolor warm fur only; preserve dark markings and purple mouth details.
+          material.onBeforeCompile = (shader) => {
+            shader.fragmentShader = shader.fragmentShader.replace(
+              "#include <map_fragment>",
+              `#include <map_fragment>
+              float furWarmth = smoothstep(0.008, 0.055, diffuseColor.r - diffuseColor.b);
+              float furLight = dot(diffuseColor.rgb, vec3(0.2126, 0.7152, 0.0722));
+              float furShade = clamp(sqrt(max(furLight, 0.0)) * 1.65 + 0.045, 0.0, 1.0);
+              vec3 orangeFur = vec3(0.95, 0.255, 0.027) * furShade;
+              diffuseColor.rgb = mix(diffuseColor.rgb, orangeFur, furWarmth * 0.9);`,
+            );
+          };
+          material.customProgramCacheKey = () => "kurama-orange-fur-v1";
           m.kurama.userData.opacityTargets.push({
             material,
             opacity: material.opacity,

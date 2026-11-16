@@ -160,6 +160,8 @@ try {
           kuramaTails: actor.kurama.userData.tails.length,
           kuramaHead: !!actor.kurama.userData.modelHead,
           userKurama: actor.kurama.userData.userModel,
+          foxForward: new T.Vector3(0, 0, 1)
+            .applyQuaternion(actor.kurama.quaternion).toArray(),
           userOrb: !!actor.bijuu.getObjectByName("user-bijuu"),
           kuramaHeadHeight: actor.kurama.userData.modelHead
             ? new T.Box3()
@@ -201,11 +203,13 @@ try {
   assert.ok(b.kuramaHeadHeight > 5.7 && b.kuramaHeadHeight < 7.2);
   assert.equal(b.kuramaHeadFallback, false);
   assert.equal(b.userKurama, true);
+  assert.ok(b.foxForward[0] > 0.999 && Math.abs(b.foxForward[2]) < 0.001);
   assert.equal(b.userOrb, true);
   assert.ok(Math.min(...b.handsToBijuu) > 0.4 && Math.min(...b.handsToBijuu) < 0.7);
   const mirrored = await snap("bijuu-charge-mirrored", "bijuu", 0.8, -1);
   assert.ok(Math.abs(Math.min(...mirrored.handsToBijuu) - 0.52) < 0.02);
   assert.equal(mirrored.userKurama, true);
+  assert.ok(mirrored.foxForward[0] < -0.999 && Math.abs(mirrored.foxForward[2]) < 0.001);
   const shot = await snap("bijuu-release", "bijuu", 1.02);
   assert.ok(shot.projectiles.includes("bijuu"));
   const sub = await snap("substitution", "substitution", 0.2);

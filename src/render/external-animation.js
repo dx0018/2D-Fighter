@@ -251,7 +251,8 @@ function animateKurama(m, f, cast, clock) {
   m.kurama.visible = fade > 0.01;
   if (!m.kurama.visible) return;
   m.kurama.position.set(-(f.facing || 1) * 0.35, 0.06, -1.4);
-  m.kurama.quaternion.copy(m.visual.quaternion);
+  // The fox faces along the combat lane, independent of the actor’s camera-facing stance.
+  m.kurama.rotation.set(0, (cast?.facing || f.facing || 1) * Math.PI / 2, 0);
   m.kurama.scale.setScalar((0.98 + charge * 0.12) * (0.94 + Math.sin(clock * 5) * 0.025));
   for (const { material, opacity } of m.kurama.userData.opacityTargets)
     material.opacity = opacity * fade;
