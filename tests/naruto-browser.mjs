@@ -108,17 +108,19 @@ try {
   await page.waitForFunction(() =>
     casts.some((e) => e.move === "ultimate" && e.visual === "bijuu"),
   );
-  const snap = async (name, kind = "idle", elapsed = 0) => {
+  const snap = async (name, kind = "idle", elapsed = 0, facing = 1) => {
     const info = await page.evaluate(
-      async ({ kind, elapsed }) => {
+      async ({ kind, elapsed, facing }) => {
         const g = __POCKET__.game,
           a = __POCKET__.arena;
         const actor = a.fighters[0];
         g.reset();
         g.state.phase = "fighting";
         g.state.objects = [];
-        g.state.fighters[0].x = -2.5;
-        g.state.fighters[1].x = 2.5;
+        g.state.fighters[0].x = -2.5 * facing;
+        g.state.fighters[1].x = 2.5 * facing;
+        g.state.fighters[0].facing = facing;
+        g.state.fighters[1].facing = -facing;
         const f = g.state.fighters[0];
         if (kind === "crouch") {
           f.crouching = true;
@@ -157,6 +159,8 @@ try {
           kurama: actor.kurama.visible,
           kuramaTails: actor.kurama.userData.tails.length,
           kuramaHead: !!actor.kurama.userData.modelHead,
+          userKurama: actor.kurama.userData.userModel,
+          userOrb: !!actor.bijuu.getObjectByName("user-bijuu"),
           kuramaHeadHeight: actor.kurama.userData.modelHead
             ? new T.Box3()
                 .setFromObject(actor.kurama.userData.modelHead, true)
@@ -175,7 +179,7 @@ try {
           programs: a.renderer.info.programs.length,
         };
       },
-      { kind, elapsed },
+      { kind, elapsed, facing },
     );
     await page
       .locator("#battle-shell")
@@ -196,7 +200,12 @@ try {
   assert.equal(b.kuramaHead, true);
   assert.ok(b.kuramaHeadHeight > 5.7 && b.kuramaHeadHeight < 7.2);
   assert.equal(b.kuramaHeadFallback, false);
-  assert.ok(b.handsToBijuu.every((distance) => distance < 0.5));
+  assert.equal(b.userKurama, true);
+  assert.equal(b.userOrb, true);
+  assert.ok(Math.min(...b.handsToBijuu) > 0.4 && Math.min(...b.handsToBijuu) < 0.7);
+  const mirrored = await snap("bijuu-charge-mirrored", "bijuu", 0.8, -1);
+  assert.ok(Math.abs(Math.min(...mirrored.handsToBijuu) - 0.52) < 0.02);
+  assert.equal(mirrored.userKurama, true);
   const shot = await snap("bijuu-release", "bijuu", 1.02);
   assert.ok(shot.projectiles.includes("bijuu"));
   const sub = await snap("substitution", "substitution", 0.2);
@@ -265,7 +274,7 @@ try {
   await click("credits");
   const credits = await page.locator(".model-credits").textContent();
   assert.match(credits, /Kurama/);
-  assert.match(credits, /Original mesh and materials/);
+  assert.match(credits, /created and provided by dx0018/);
   await click("close-credits");
   const compatible = await browser.newPage({
     viewport: { width: 390, height: 844 },

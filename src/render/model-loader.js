@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { clone as cloneSkeleton } from "three/addons/utils/SkeletonUtils.js";
-import { makeChakraOrb, makeKuramaAura } from "./ninja-effects.js";
+import { makeChakraOrb, makeKuramaAura, setBijuuModel, attachBijuuModel } from "./ninja-effects.js";
 
 const cache = new Map();
 const assetBase = import.meta.env?.BASE_URL || "/";
@@ -220,21 +220,28 @@ export async function loadFighterModel(character) {
     m.kurama = makeKuramaAura();
     m.kurama.visible = false;
     try {
-      const fox = await load(`${assetBase}models/kurama-head.glb`);
+      const [fox, bomb] = await Promise.all([
+        load(`${assetBase}models/kurama-user.glb`),
+        load(`${assetBase}models/bijuu-user.glb`),
+      ]);
+      setBijuuModel(bomb.scene);
+      attachBijuuModel(m.bijuu);
       const head = fox.scene.clone(true);
-      head.position.set(0, 3.25, 0);
-      head.scale.setScalar(4.2);
+      head.position.set(0, 0.55, 0);
+      head.scale.setScalar(1);
       head.traverse((node) => {
         if (!node.isMesh) return;
         node.castShadow = false;
         node.receiveShadow = false;
         node.frustumCulled = false;
         node.renderOrder = 2;
+        node.geometry.userData.sharedAsset = true;
         const originals = Array.isArray(node.material)
           ? node.material
           : [node.material];
         const materials = originals.map((base) => {
           const material = base.clone();
+          material.userData.sharedTextures = true;
           material.transparent = true;
           material.depthWrite = true;
           material.opacity = 0.88;
@@ -249,6 +256,8 @@ export async function loadFighterModel(character) {
       m.kurama.add(head);
       m.kurama.userData.headFallback.visible = false;
       m.kurama.userData.modelHead = head;
+      m.kurama.userData.userModel = true;
+      for (const tail of m.kurama.userData.tails) tail.visible = false;
     } catch (error) {
       console.warn("Using the built-in Kurama head:", error);
     }

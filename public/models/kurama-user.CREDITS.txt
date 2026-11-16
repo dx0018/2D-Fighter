@@ -1,0 +1,8 @@
+Kurama and Tailed Beast Bomb
+Created and provided by player dx0018 for use in this game.
+Source upload: nine-tailed-fox-detailed.obj.zip (sculptor-v2.obj, sculptor-v2.mtl, Image_0.png).
+Changes: extracted disconnected orb mesh, normalized fox height to 6.2 game
+units and orb radius to 1, adjusted roughness and smooth normals, reduced
+texture to 1024x1024 JPEG, exported GLB for local browser loading.
+Conversion: scripts/import-user-kurama.py
+No third-party open-content license is asserted for this user-supplied asset.

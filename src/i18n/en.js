@@ -12,6 +12,10 @@ export const english = {
   "为本游戏制作的风格化九尾狐首，含尖耳、黑色眼纹和獠牙。":
     "A stylized nine-tailed fox head created for this game, with pointed ears, black eye markings and fangs.",
   "大型查克拉幻影 · 原创网格与材质": "Giant chakra apparition · Original mesh and materials",
+  "鸣人、哆啦A梦和小波的模型由以下创作者提供，依照 CC BY 4.0 保留署名。九尾与尾兽玉模型由玩家 dx0018 提供。部分模型为本游戏调整了比例、颜色、骨架和配件。":
+    "Naruto, Doraemon and Po's models are credited below under CC BY 4.0. The Kurama and Tailed Beast Bomb models were provided by player dx0018. Some assets were resized, recolored or rigged for combat.",
+  "九尾与尾兽玉：dx0018 创建并提供。": "Kurama and Tailed Beast Bomb: created and provided by dx0018.",
+  "已拆分尾兽玉、调整比例与材质并接入大招": "Orb separated, proportions and materials adjusted, and linked to the ultimate.",
   "哆啦A梦 · Doraemon": "Doraemon",
   "天线宝宝小波 · Teletubby Po": "Po · Teletubbies",
   "漩涡鸣人 · Naruto Rigged (HatchXR)": "Naruto · Naruto Rigged (HatchXR)",

@@ -1,5 +1,22 @@
 import * as THREE from "three";
 
+let bijuuModel = null;
+export function setBijuuModel(scene) {
+  bijuuModel = scene;
+  scene.traverse((node) => {
+    if (node.geometry) node.geometry.userData.sharedAsset = true;
+    for (const material of (Array.isArray(node.material) ? node.material : [node.material]))
+      if (material) material.userData.sharedTextures = true;
+  });
+}
+export function attachBijuuModel(orb) {
+  if (!bijuuModel || orb.getObjectByName("user-bijuu")) return;
+  orb.children[0].visible = false;
+  const visual = bijuuModel.clone(true);
+  visual.name = "user-bijuu";
+  orb.add(visual);
+}
+
 // Small reusable meshes: no extra shadow lights, postprocessing or model copies.
 export function makeChakraOrb(kind = "rasengan") {
   const group = new THREE.Group(),
@@ -38,6 +55,7 @@ export function makeChakraOrb(kind = "rasengan") {
     ring.scale.set(1.03, 0.66 + i * 0.12, 1);
     group.add(ring);
   }
+  if (dark) attachBijuuModel(group);
   group.userData.orbKind = kind;
   return group;
 }
@@ -169,7 +187,7 @@ export function makeKuramaAura() {
 export function spinChakraOrb(orb, time, size = 1) {
   orb.scale.setScalar(size);
   orb.rotation.set(time * 1.7, time * -2.3, time * 2.8);
-  for (let i = 2; i < orb.children.length; i++) {
+  for (let i = 2; i < Math.min(5, orb.children.length); i++) {
     orb.children[i].rotation.x = i * 1.1 + time * (i % 2 ? 4 : -3);
     orb.children[i].rotation.y = i * 0.9 + time * 2;
   }

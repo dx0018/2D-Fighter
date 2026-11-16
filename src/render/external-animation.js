@@ -168,7 +168,6 @@ function poseAim(m, f, cast, walking) {
   else if (cast?.move.visual === "rasengan") pose = "rasengan";
   else if (cast?.move.visual === "bijuu") {
     pose = "bijuu";
-    bilateral = true;
   } else if (cast?.move.animation?.includes("cannon")) pose = "cannon";
   else if (cast?.move.animation === "low-cannon") pose = "low";
   else if (cast?.move.animation === "antenna-beam") {
@@ -190,7 +189,7 @@ function poseAim(m, f, cast, walking) {
       : pose === "pulse"
         ? [[0.85, 1.55, 0.2], [-0.85, 1.55, 0.2]]
         : pose === "bijuu"
-          ? [[0.25, 1.7, 0.3], [-0.25, 1.7, 0.3]]
+          ? [[0.15, 1.85, 0.8], [-0.15, 1.85, 0.8]]
           : pose === "low"
             ? [[0.55, 0.43, 0.28], [-0.42, 1.05, 0.16]]
             : pose === "cannon"
@@ -251,7 +250,7 @@ function animateKurama(m, f, cast, clock) {
     charge = clamp(elapsed / windup, 0, 1);
   m.kurama.visible = fade > 0.01;
   if (!m.kurama.visible) return;
-  m.kurama.position.set(-(f.facing || 1) * 0.55, 0.06, -1.8);
+  m.kurama.position.set(-(f.facing || 1) * 0.35, 0.06, -1.4);
   m.kurama.quaternion.copy(m.visual.quaternion);
   m.kurama.scale.setScalar((0.98 + charge * 0.12) * (0.94 + Math.sin(clock * 5) * 0.025));
   for (const { material, opacity } of m.kurama.userData.opacityTargets)
@@ -286,8 +285,15 @@ function updateDetails(m, f, dt, clock) {
   if (m.bijuu) {
     m.bijuu.visible = visual === "bijuu" && elapsed < windup;
     if (m.bijuu.visible) {
-      m.bijuu.position.set(face * 0.22, 1.7, 0.2);
-      spinChakraOrb(m.bijuu, clock, 0.06 + 0.22 * Math.min(1, elapsed / Math.max(0.001, windup)));
+      const front = (face > 0 ? 0 : 1) ^ (m.frontAxis < 0 ? 1 : 0);
+      const hand = front === 0 ? m.bones.leftHand : m.bones.rightHand;
+      if (hand) {
+        hand.getWorldPosition(m.worldPosition);
+        m.root.worldToLocal(m.worldPosition);
+        m.bijuu.position.copy(m.worldPosition);
+        m.bijuu.position.x += face * 0.52;
+      }
+      spinChakraOrb(m.bijuu, clock, 0.15 + 0.5 * Math.min(1, elapsed / Math.max(0.001, windup)));
     }
     m.chakraCloak.visible = visual === "bijuu";
     m.chakraCloak.material.opacity = 0.035 + (elapsed / Math.max(0.001, windup)) * 0.055;
