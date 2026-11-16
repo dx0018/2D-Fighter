@@ -14,6 +14,7 @@
     "test:visual": "node tests/visual-upgrade.mjs",
     "previews": "node scripts/render-previews.mjs",
     "inspect:motion": "node scripts/inspect-motion.mjs",
+    "inspect:flow": "node scripts/inspect-flow.mjs",
     "profile": "node scripts/profile.mjs"
   },
   "dependencies": {

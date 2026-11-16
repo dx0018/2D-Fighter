@@ -346,3 +346,31 @@ test("short recovery input is accepted without turning held attacks into autofir
   advance(game, 1, [{ attack: true }, {}]);
   assert.equal(f.currentMove, null);
 });
+
+test("a normal attack tapped 180ms before cooldown ends chains once without cancelling recovery", () => {
+  for (const character of characters) {
+    const events = [],
+      game = create({
+        characters: [character, character],
+        onEvent: (event) => events.push(event),
+      });
+    game.state.phase = "fighting";
+    const f = game.state.fighters[0];
+    f.x = -20;
+    game.state.fighters[1].x = 20;
+    game.step(1 / 120, [{ attack: true }, {}]);
+    const first = f.currentMove.id;
+    advance(game, f.cooldowns.attack - 0.18);
+    game.step(1 / 120, [{ attack: true }, {}]);
+    assert.equal(
+      f.currentMove.id,
+      first,
+      "the first recovery completes normally",
+    );
+    advance(game, 0.2, [{ attack: true }, {}]);
+    assert.ok(f.currentMove && f.currentMove.id !== first, character.name);
+    advance(game, 1, [{ attack: true }, {}]);
+    assert.equal(events.filter((e) => e.type === "cast").length, 2);
+    assert.equal(f.currentMove, null, "holding the button never auto-repeats");
+  }
+});

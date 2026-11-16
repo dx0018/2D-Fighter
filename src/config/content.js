@@ -18,11 +18,15 @@ export const characters = [
     maxEnergy: 100,
     speed: 6.6,
     jump: 12.2,
+    locomotion: { stride: 2.3, lift: 0.22, armSwing: 0.38 },
     moves: {
       attack: {
         name: "圆圆拳",
         description: "近距离直拳，命中恢复能量。",
         kind: "melee",
+        animation: "jab",
+        motion: { prepare: 0.35, reach: 0.77 },
+        inputBuffer: 0.18,
         impact: { stop: 0.055, shake: 0.3 },
         damage: 8,
         range: 2.35,
@@ -171,11 +175,15 @@ export const characters = [
     maxEnergy: 100,
     speed: 7.3,
     jump: 12.4,
+    locomotion: { stride: 2.4, lift: 0.25, armSwing: 0.45 },
     moves: {
       attack: {
         name: "快乐拍击",
         description: "有力的近身拍击，命中恢复能量。",
         kind: "melee",
+        animation: "palm",
+        motion: { prepare: 0.4, reach: 0.7 },
+        inputBuffer: 0.18,
         impact: { stop: 0.055, shake: 0.3 },
         damage: 10,
         range: 2.1,

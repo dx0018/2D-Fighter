@@ -1,33 +1,26 @@
 import * as THREE from "three";
 import { clamp, damp, ease } from "./primitives.js";
 import { poseChain } from "./rig.js";
+import { sampleStep, updateGait } from "./locomotion.js";
+import { sampleMelee } from "./melee-motion.js";
 const TAU = Math.PI * 2;
-// 60% of a step is support: the planted foot moves opposite actual travel.
-// The swing foot clears the floor and eases forward before the next heel strike.
-function stepFoot(phase) {
-  const p = (((phase / TAU) % 1) + 1) % 1;
-  if (p < 0.6)
-    return {
-      x: 0.63 - (p / 0.6) * 1.26,
-      lift: 0,
-      roll: -0.12 + Math.min(1, p / 0.6) * 0.22,
-      support: true,
-      cycle: Math.floor(phase / TAU),
-    };
-  const t = (p - 0.6) / 0.4;
-  return {
-    x: -0.63 + ease(t) * 1.26,
-    lift: Math.sin(t * Math.PI) * 0.32,
-    roll: -Math.sin(t * Math.PI) * 0.32,
-    support: false,
-    cycle: Math.floor(phase / TAU),
-  };
-}
 function poseLeg(m, leg, target) {
   const origin = m.vector
     .set(leg.side * 0.29, m.hipHeight, 0)
     .applyMatrix4(m.body.matrix);
-  m.target.set(...target);
+  m.target.copy(target);
+  // Limit horizontal reach at the requested floor height. Clamping the whole
+  // 3D vector would pull a planted foot up when turning or stopping abruptly.
+  const dx = m.target.x - origin.x,
+    dz = m.target.z - origin.z,
+    horizontal = Math.hypot(dx, dz),
+    vertical = m.target.y - origin.y,
+    reach = leg.upperLength + leg.lowerLength - 0.003,
+    maxHorizontal = Math.sqrt(Math.max(0, reach * reach - vertical * vertical));
+  if (horizontal > maxHorizontal && horizontal > 0) {
+    m.target.x = origin.x + (dx * maxHorizontal) / horizontal;
+    m.target.z = origin.z + (dz * maxHorizontal) / horizontal;
+  }
   m.pole.set(0, 0.02, 1);
   poseChain(leg, origin, m.target, m.pole);
   leg.foot.position.copy(leg.endpoint);
@@ -48,17 +41,12 @@ export function animateFighter(m, f, dt, clock, index = 0, hitstop = 0) {
   if (hitstop > 0) dt = contactFrame ? Math.max(dt, 1 / 30) : 0;
   m.animTime = (m.animTime || 0) + dt;
   const t = m.animTime;
-  m.walkBlend = damp(
-    m.walkBlend || 0,
-    walk ? Math.min(1, Math.abs(f.vx) / f.character.speed) : 0,
-    dt,
-    45,
-  );
+  const cycle = updateGait(m, f, dt, walk),
+    gait = f.character.locomotion || {};
   m.crouchBlend = damp(m.crouchBlend || 0, crouch ? 1 : 0, dt, 50);
   const walking = m.walkBlend,
-    squat = m.crouchBlend,
-    cycle = ((f.walkDistance || 0) / 2.1) * TAU;
-  const movement = Math.sign(f.vx) || face,
+    squat = m.crouchBlend;
+  const movement = m.travelDirection,
     takeoff =
       (f.jumpStartup || 0) > 0
         ? Math.sin((1 - f.jumpStartup / 0.025) * Math.PI * 0.7)
@@ -80,14 +68,13 @@ export function animateFighter(m, f, dt, clock, index = 0, hitstop = 0) {
     kick = 0,
     kickHeight = 0.25,
     spin = 0;
-  let bend = 0.07 + squat * 0.27 + takeoff * 0.16 + landing * 0.18;
   if (walking > 0.01) {
     hands = hands.map((h, i) => {
-      const step = stepFoot(cycle + i * Math.PI);
+      const step = sampleStep(cycle + i * Math.PI, gait.stride, gait.lift);
       return [
         h[0],
-        1.18 + step.lift * 0.35 * walking,
-        0.46 - movement * face * step.x * 0.5 * walking,
+        1.3 - 0.07 * walking + step.lift * 0.28 * walking,
+        0.46 - face * step.x * (gait.armSwing || 0.4) * walking,
       ];
     });
   }
@@ -99,7 +86,6 @@ export function animateFighter(m, f, dt, clock, index = 0, hitstop = 0) {
       [-0.93, 1.65, 0.27],
       [0.93, 1.65, 0.27],
     ];
-    bend = 0.18 + tuck * 0.12;
   }
   if (takeoff > 0) {
     hands = [
@@ -116,7 +102,9 @@ export function animateFighter(m, f, dt, clock, index = 0, hitstop = 0) {
   }
   let power = 0,
     released = false,
-    w = 0;
+    w = 0,
+    strike = null;
+  const guardHands = hands;
   if (cast) {
     const { move, elapsed, key } = cast;
     w = ease(elapsed / Math.max(0.001, move.windup));
@@ -129,18 +117,22 @@ export function animateFighter(m, f, dt, clock, index = 0, hitstop = 0) {
     power = released ? 1 - ease(recovery) : 0;
     const front = face > 0 ? 1 : 0,
       back = 1 - front,
-      style = move.animation;
+      style = move.animation,
+      melee = key === "attack" ? sampleMelee(move, elapsed) : null;
+    hands = hands.map((h) => [...h]);
     if (style === "sweep" || style === "slide") {
       hands[front] = [face * 0.78, 1.55, 0.55];
       hands[back] = [-face * 0.65, 1.1, 0.2];
-      kick = released ? (style === "slide" ? 0.8 : 0.72) * power : 0;
+      kick = melee ? 0.72 * melee.extension : released ? 0.8 * power : 0;
       kickHeight = 0.22;
-      lean = face * (style === "slide" ? -0.25 : 0.12) * Math.max(w, power);
-      bend = 0.35;
+      lean =
+        face *
+        (style === "slide" ? -0.25 : 0.12) *
+        (melee ? melee.weight : Math.max(w, power));
     } else if (style === "air-kick") {
-      kick = released ? 0.82 * power : 0.2 * w;
+      kick = 0.82 * melee.extension;
       kickHeight = 0.55;
-      lean = -face * 0.17;
+      lean = -face * 0.17 * melee.weight;
       hands[back] = [-face * 0.8, 1.4, 0.2];
     } else if (style === "air-spin") {
       spin = released
@@ -163,27 +155,19 @@ export function animateFighter(m, f, dt, clock, index = 0, hitstop = 0) {
       mouth = released;
       bodyY -= 0.035 * power;
     } else if (key === "attack") {
-      if (!released) {
-        hands[front] = [
-          face * (0.8 - 0.3 * w),
-          1.38 + (po ? 0.6 : 0.08) * w,
-          0.42,
-        ];
-        lean = face * 0.12 * w;
-        twist = face * (0.48 - 0.3 * w);
-        squash = 1 - 0.05 * w;
-      } else {
-        hands[front] = [
-          face * (0.8 + (po ? 0.58 : 0.65) * power),
-          1.48 + (po ? 0.25 : 0) * power,
-          0.42,
-        ];
-        hands[back] = [-face * 0.6, 1.2, 0.58];
-        lean = -face * 0.18 * power;
-        twist = face * (0.48 + 0.22 * power);
-        bodyY = 0.03 * power;
-        squash = 1 + 0.025 * power;
-      }
+      strike = melee;
+      const { prepare, extension } = strike,
+        motion = move.motion || {};
+      hands[front] = [
+        face * (0.5 - 0.1 * prepare + (motion.reach || 0.77) * extension),
+        1.42 + (po ? 0.35 : 0.08) * prepare + (po ? 0.24 : 0.04) * extension,
+        0.12 + (po ? 0.18 : 0.06) * prepare - 0.36 * extension,
+      ];
+      hands[back] = [-face * 0.22, 1.35, 0.6];
+      lean += face * (0.09 * prepare - 0.14 * extension);
+      twist += face * (-0.22 * prepare + 0.24 * extension);
+      bodyY += -0.018 * prepare + 0.025 * extension;
+      squash = 1 - 0.04 * prepare;
     } else if (move.kind === "projectile" || move.kind === "beam") {
       const handCannon = style === "cannon" || style === "retreat-cannon",
         divingCannon = style === "air-cannon";
@@ -261,7 +245,6 @@ export function animateFighter(m, f, dt, clock, index = 0, hitstop = 0) {
       [1.03, 1.35, 0.13],
     ];
     twist = face * 0.3;
-    bend = f.hitLevel === "low" ? 0.3 : 0.12;
   }
   if (victory) {
     hands = po
@@ -286,7 +269,6 @@ export function animateFighter(m, f, dt, clock, index = 0, hitstop = 0) {
       [-0.8, 0.7, 0.4],
       [0.8, 0.7, 0.4],
     ];
-    bend = 0.3;
   }
   m.root.position.set(f.x, Math.max(0, f.y), 0);
   const yawTarget =
@@ -306,8 +288,8 @@ export function animateFighter(m, f, dt, clock, index = 0, hitstop = 0) {
     squat * 0.64 - lean * face * (1 - squat) + landing * 0.12 + takeoff * 0.1;
   m.body.rotation.set(
     damp(m.body.rotation.x, pitch, dt, 45),
-    Math.sin(cycle) * walking * 0.045,
-    Math.sin(cycle) * walking * 0.012,
+    damp(m.body.rotation.y, Math.sin(cycle) * walking * 0.035, dt, 24),
+    damp(m.body.rotation.z, Math.sin(cycle) * walking * 0.012, dt, 24),
   );
   m.body.scale.set(1, 1, 1);
   const hipY =
@@ -319,8 +301,9 @@ export function animateFighter(m, f, dt, clock, index = 0, hitstop = 0) {
       bodyY +
       (squash - 1) * 0.08) *
       (1 - squat);
+  m.visualHipY = damp(m.visualHipY ?? hipY, hipY, dt, 32);
   m.vector.set(0, m.hipHeight, 0).applyQuaternion(m.body.quaternion);
-  m.body.position.set(0, hipY, -squat * 0.28).sub(m.vector);
+  m.body.position.set(0, m.visualHipY, -squat * 0.28).sub(m.vector);
   m.head.scale.set(1, 1, 1);
   m.head.position.set(0, m.baseHead, 0);
   m.head.rotation.set(
@@ -347,14 +330,19 @@ export function animateFighter(m, f, dt, clock, index = 0, hitstop = 0) {
       m.target.set(...target).applyMatrix4(m.body.matrix);
       m.vector.set(m.arms[i].side * 0.48, 1.22, 0.9);
       m.target.lerp(m.vector, squat);
-    } else
+    } else {
       m.target.set(
         cy * target[0] - sy * target[2],
         target[1],
         sy * target[0] + cy * target[2],
       );
+      if (strike) {
+        m.vector.set(...guardHands[i]).applyMatrix4(m.body.matrix);
+        m.target.lerpVectors(m.vector, m.target, strike.weight);
+      }
+    }
     const v = m.handTargets[i];
-    v.lerp(m.target, 1 - Math.exp(-dt * (cast ? 70 : 45)));
+    v.lerp(m.target, 1 - Math.exp(-dt * (strike ? 110 : cast ? 70 : 32)));
     m.target.copy(v).applyMatrix4(m.bodyInverse);
     m.pole.set(m.arms[i].side * 0.4, -0.6, -0.3);
     poseChain(m.arms[i], m.arms[i].shoulder, m.target, m.pole);
@@ -362,11 +350,19 @@ export function animateFighter(m, f, dt, clock, index = 0, hitstop = 0) {
       .copy(m.arms[i].endpoint)
       .applyMatrix4(m.body.matrix);
     m.arms[i].hand.rotation.y = -yaw;
+    m.arms[i].hand.rotation.z = damp(
+      m.arms[i].hand.rotation.z,
+      po && strike && i === (face > 0 ? 1 : 0)
+        ? -face * strike.extension * 0.32
+        : 0,
+      dt,
+      35,
+    );
   });
   m.legs.forEach((leg, i) => {
-    const step = stepFoot(cycle + i * Math.PI),
+    const step = sampleStep(cycle + i * Math.PI, gait.stride, gait.lift),
       front = leg.side === face;
-    let travel = movement * step.x * walking,
+    let travel = step.x * walking,
       footY = leg.footHeight + step.lift * walking;
     if (air) {
       travel = -face * (front ? 0.1 : 0.27);
@@ -387,23 +383,31 @@ export function animateFighter(m, f, dt, clock, index = 0, hitstop = 0) {
     const planting = walk && walking > 0.8 && step.support;
     if (planting) {
       if (!leg.planted || leg.plantCycle !== step.cycle) {
-        leg.plantX = f.x + cy * target[0] + sy * target[2];
-        leg.plantZ = -sy * target[0] + cy * target[2];
+        leg.plantX = leg.worldX ?? f.x + cy * target[0] + sy * target[2];
+        leg.plantZ = leg.worldZ ?? -sy * target[0] + cy * target[2];
         leg.plantCycle = step.cycle;
       }
       target[0] = cy * (leg.plantX - f.x) - sy * leg.plantZ;
       target[2] = sy * (leg.plantX - f.x) + cy * leg.plantZ;
     }
     leg.planted = planting;
-    poseLeg(m, leg, target);
+    leg.placement ??= new THREE.Vector3(...target);
+    if (planting) leg.placement.set(...target);
+    else {
+      m.target.set(...target);
+      leg.placement.lerp(m.target, 1 - Math.exp(-dt * (air || kick ? 42 : 24)));
+    }
+    poseLeg(m, leg, leg.placement);
     leg.foot.rotation.order = "YXZ";
     leg.foot.rotation.y = (face * Math.PI) / 2 - yaw;
     leg.foot.rotation.x = damp(
       leg.foot.rotation.x,
-      air ? -0.1 : step.roll * movement * face * walking,
+      air ? -0.1 : step.roll * face * walking,
       dt,
       40,
     );
+    leg.worldX = f.x + cy * leg.foot.position.x + sy * leg.foot.position.z;
+    leg.worldZ = -sy * leg.foot.position.x + cy * leg.foot.position.z;
   });
   const blink = Math.sin(t * 0.8 + index * 2) > 0.997;
   m.eyes.forEach(

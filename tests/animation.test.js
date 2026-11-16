@@ -4,8 +4,9 @@ import * as THREE from "three";
 import { makeFighter } from "../src/render/fighters.js";
 import { animateFighter } from "../src/render/animation.js";
 import { selectMove } from "../src/game/moves.js";
-import { characters } from "../src/config/content.js";
+import { characters, maps } from "../src/config/content.js";
 import { disposeTree } from "../src/render/primitives.js";
+import { Game } from "../src/game/engine.js";
 const state = () => ({
   character: characters[0],
   x: 0,
@@ -144,8 +145,7 @@ test("Doraemon's chest and diving cannon poses align with the shot in both direc
         elapsed: move.windup + 0.02,
         facing,
       };
-      for (let i = 0; i < 90; i++)
-        animateFighter(m, f, 1 / 60, i / 60, 0);
+      for (let i = 0; i < 90; i++) animateFighter(m, f, 1 / 60, i / 60, 0);
       m.root.updateMatrixWorld(true);
 
       const muzzle = m.cannon.getWorldPosition(new THREE.Vector3()),
@@ -154,10 +154,86 @@ test("Doraemon's chest and diving cannon poses align with the shot in both direc
         ),
         expectedY = f.y + (context === "air" ? 1.2 : 1.75);
       assert.ok(Math.abs(muzzle.y - expectedY) < 0.16, `${context} muzzle Y`);
-      assert.ok(direction.x * facing > 0, `${context} aims toward the opponent`);
+      assert.ok(
+        direction.x * facing > 0,
+        `${context} aims toward the opponent`,
+      );
       if (context === "air")
-        assert.ok(direction.y < 0, "the diving cannon points down on both sides");
+        assert.ok(
+          direction.y < 0,
+          "the diving cannon points down on both sides",
+        );
       m.skeleton.dispose();
       disposeTree(m.root);
     }
+});
+
+test("walk start, release and reversal keep feet grounded without large pose jumps", () => {
+  const g = new Game({ characters, map: maps[0] }),
+    m = makeFighter(characters[0]),
+    f = g.state.fighters[0];
+  g.state.phase = "fighting";
+  f.x = -10;
+  g.state.fighters[1].x = 20;
+  animate(m, f);
+  let previous = m.legs.map((leg) =>
+    leg.foot.getWorldPosition(new THREE.Vector3()),
+  );
+  for (let i = 0; i < 120; i++) {
+    const input =
+      i < 40 ? { right: true } : i < 65 ? {} : i < 100 ? { left: true } : {};
+    g.step(1 / 60, [input, {}]);
+    animateFighter(m, f, 1 / 60, i / 60);
+    m.root.updateMatrixWorld(true);
+    const feet = m.legs.map((leg) =>
+      leg.foot.getWorldPosition(new THREE.Vector3()),
+    );
+    feet.forEach((foot, j) => {
+      assert.ok(foot.distanceTo(previous[j]) < 0.4, `foot jumps on frame ${i}`);
+      const floor = new THREE.Box3().setFromObject(m.legs[j].foot, true).min.y;
+      assert.ok(floor > -0.035, `floor penetration on frame ${i}`);
+      if (m.legs[j].planted)
+        assert.ok(floor < 0.04, `support foot floats on frame ${i}`);
+    });
+    previous = feet;
+  }
+  m.skeleton.dispose();
+  disposeTree(m.root);
+});
+
+test("a normal punch extends before contact and returns to guard without a release snap", () => {
+  const m = makeFighter(characters[0]),
+    f = state(),
+    move = f.character.moves.attack;
+  animate(m, f);
+  const guard = m.arms[1].hand.getWorldPosition(new THREE.Vector3());
+  let previous = guard.clone(),
+    beforeContact;
+  f.action = "attack";
+  f.currentMove = { key: "attack", move, elapsed: 0, facing: 1 };
+  for (let i = 0; i < 30; i++) {
+    const elapsed = (i + 1) / 60;
+    if (elapsed < move.windup + move.active + move.recovery)
+      f.currentMove.elapsed = elapsed;
+    else {
+      f.currentMove = null;
+      f.action = "idle";
+    }
+    animateFighter(m, f, 1 / 60, elapsed);
+    m.root.updateMatrixWorld(true);
+    const fist = m.arms[1].hand.getWorldPosition(new THREE.Vector3());
+    assert.ok(fist.distanceTo(previous) < 0.4, `fist snaps on frame ${i}`);
+    if (elapsed < move.windup) beforeContact = fist.x;
+    previous = fist;
+  }
+  assert.ok(
+    beforeContact > guard.x + 0.15,
+    "the fist travels before the hit window",
+  );
+  assert.ok(
+    previous.distanceTo(guard) < 0.05,
+    "recovery ends in the original guard",
+  );
+  m.skeleton.dispose();
+  disposeTree(m.root);
 });

@@ -158,18 +158,21 @@ export class Game {
           f.grounded &&
           !inputs[id].crouch,
       );
-      const key = ["ultimate", "skill", "attack"].find(
-        (key) =>
-          pressed[id][key] &&
-          f.energy >= selectMove(f.character, key, f.inputContext).cost &&
-          f.cooldowns[key] <= 0.12,
-      );
+      const key = ["ultimate", "skill", "attack"].find((key) => {
+        if (!pressed[id][key]) return false;
+        const move = selectMove(f.character, key, f.inputContext);
+        return (
+          f.energy >= move.cost &&
+          f.cooldowns[key] <= (move.inputBuffer ?? 0.12) + EPS
+        );
+      });
       if (key)
         f.bufferedMove = {
           key,
           context: key === "ultimate" ? "neutral" : f.inputContext,
           facing: Math.sign(other.x - f.x) || f.facing,
-          remaining: 0.12,
+          remaining:
+            selectMove(f.character, key, f.inputContext).inputBuffer ?? 0.12,
         };
       if (pressed[id].jump) f.jumpBuffer = 0.12;
     });
@@ -182,8 +185,8 @@ export class Game {
     s.fighters.forEach((f, id) => {
       f.actionTime += dt;
       if (f.bufferedMove) {
-        f.bufferedMove.remaining -= dt;
-        if (f.bufferedMove.remaining <= 0) f.bufferedMove = null;
+        if (f.bufferedMove.remaining < -EPS) f.bufferedMove = null;
+        else f.bufferedMove.remaining -= dt;
       }
       f.jumpBuffer = Math.max(0, f.jumpBuffer - dt);
       f.comboWindow = Math.max(0, f.comboWindow - dt);
@@ -303,6 +306,10 @@ export class Game {
       );
       if (f.grounded && f.action === "walk")
         f.walkDistance += Math.abs(f.x - oldX);
+      if (f.grounded && f.action === "walk" && Math.abs(f.x - oldX) < EPS) {
+        f.vx = 0;
+        this.setAction(f, "idle");
+      }
       if (!f.grounded) {
         f.vy -= 25 * (f.currentMove?.move.gravityScale ?? 1) * dt;
         f.y += f.vy * dt;
