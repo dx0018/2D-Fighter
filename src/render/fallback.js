@@ -62,6 +62,11 @@ export function drawFallback(state) {
     c.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2);
     c.fill();
   };
+  for(const supply of state.supplies||[]){
+    c.strokeStyle=supply.active?'#85e9ff':'#5e9da9';c.lineWidth=2;
+    c.beginPath();c.ellipse(px(supply.x),base,scale*.8,scale*.12,0,0,Math.PI*2);c.stroke();
+    if(supply.active){const x=px(supply.x),y=base-scale*.9;c.fillStyle='#8ce8ff';c.beginPath();c.moveTo(x,y-scale*.3);c.lineTo(x+scale*.22,y);c.lineTo(x,y+scale*.3);c.lineTo(x-scale*.22,y);c.closePath();c.fill();}
+  }
   state.fighters.forEach((f, i) => {
     if (["ninja", "sasuke"].includes(f.character.bodyStyle)) {
       drawNaruto(c, px(f.x), base - f.y * scale, scale, f, this.clock);

@@ -49,3 +49,13 @@ test('CPU emits separate button presses and changes direction after swapping sid
   ai.timer=0;
   assert.equal(ai.read(g,1/60).right,true);
 });
+
+test('CPU seeks active supplies when low and stands to guard aerial melee',()=>{
+ const g=new Game({characters:characters.slice(0,2),map:maps[0]});g.state.phase='fighting';
+ const [rival,self]=g.state.fighters;self.energy=20;rival.x=-10;self.x=10;
+ g.state.supplies=[{x:20,active:true,contested:false}];
+ assert.equal(new ComputerPlayer(()=>.2).read(g,1/60).right,true);
+ rival.x=self.x-2;rival.grounded=false;g.beginMove(rival,'attack','air');
+ const defense=new ComputerPlayer(()=>.2).read(g,1/60);
+ assert.equal(defense.right,true);assert.equal(defense.crouch,undefined);assert.equal(defense.jump,undefined);assert.equal(defense.attack,undefined);
+});

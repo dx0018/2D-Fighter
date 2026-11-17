@@ -1,0 +1,36 @@
+import {chromium} from 'playwright';
+import assert from 'node:assert/strict';
+import {mkdir} from 'node:fs/promises';
+await mkdir('artifacts/arena-playability',{recursive:true});
+const browser=await chromium.launch({executablePath:'/usr/bin/chromium',args:['--no-sandbox','--disable-dev-shm-usage','--use-angle=swiftshader','--enable-unsafe-swiftshader']});
+try{
+ const page=await browser.newPage({viewport:{width:1280,height:900}});page.setDefaultTimeout(120000);
+ const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.goto(process.env.TEST_URL||'http://localhost:5173');
+ const click=a=>page.locator(`[data-action="${a}"]`).first().click();
+ await click('start');for(const p of [0,1])await page.click(`[data-action="ready"][data-player="${p}"]`);
+ await click('to-maps');assert.match(await page.locator('main').innerText(),/74/);
+ await page.selectOption('[data-setting="language"]','en');
+ await page.setViewportSize({width:390,height:844});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+ await page.screenshot({path:'artifacts/arena-playability/maps-mobile.png',fullPage:true});
+ await page.setViewportSize({width:1280,height:900});await click('fight');
+ await page.waitForFunction(()=>__POCKET__.game?.state.phase==='fighting');
+ await page.evaluate(()=>{const g=__POCKET__.game;g.reset();g.state.phase='fighting';g.state.objects=[];g.state.supplies=[];g.state.fighters[0].x=g.map.bounds.right-2;g.state.fighters[1].x=g.map.bounds.right-.6;});
+ await page.keyboard.down('ArrowRight');await page.keyboard.press('f');
+ await page.waitForFunction(()=>__POCKET__.game.state.fighters[1].hp<100);
+ await page.keyboard.up('ArrowRight');assert.equal(await page.evaluate(()=>__POCKET__.game.state.fighters[1].hp),98);
+ await page.evaluate(()=>{const g=__POCKET__.game;g.reset();g.state.phase='fighting';g.state.fighters[0].x=-.6;g.state.fighters[1].x=.6;g.state.fighters[0].energy=20;g.state.supplies.forEach(s=>{s.active=true;s.remaining=0;});});
+ await page.waitForFunction(()=>__POCKET__.game.state.supplies[1].contested);
+ assert.match(await page.locator('#supply-status').innerText(),/contest/i);
+ await page.screenshot({path:'artifacts/arena-playability/contested.png',fullPage:true});
+ await page.evaluate(()=>{__POCKET__.game.state.fighters[1].x=10;});
+ await page.waitForFunction(()=>!__POCKET__.game.state.supplies[1].active);
+ assert.ok(await page.evaluate(()=>__POCKET__.game.state.fighters[0].energy>=40));
+ await click('pause');const before=await page.evaluate(()=>JSON.stringify(__POCKET__.game.state.supplies));await page.waitForTimeout(200);assert.equal(await page.evaluate(()=>JSON.stringify(__POCKET__.game.state.supplies)),before);
+ await page.setViewportSize({width:390,height:844});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));await page.screenshot({path:'artifacts/arena-playability/battle-mobile.png',fullPage:true});
+ await page.setViewportSize({width:1280,height:900});await click('pause');
+ await page.evaluate(()=>{const g=__POCKET__.game;g.state.time=.001;g.state.fighters[1].hp=1;});await page.locator('.result-card').waitFor();await click('rematch');
+ assert.equal(await page.evaluate(()=>__POCKET__.game.state.objects.filter(o=>!o.destroyed&&o.type==='crate').length),6);
+ assert.ok(await page.evaluate(()=>__POCKET__.game.state.supplies.length===3&&__POCKET__.game.state.supplies.every(s=>!s.active)));
+ assert.deepEqual(errors,[]);console.log('PASS: map selection, English/mobile, keyboard guard, contested supply, pickup, pause and rematch.');
+}finally{await browser.close();}

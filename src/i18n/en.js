@@ -1,5 +1,18 @@
 // Chinese source copy is the lookup key. Add translations here when adding content.
 export const english = {
+  "能量补给": "Energy supply",
+  "✦ 击碎木箱回复 16 能量。": "\u2726 Break crates to recover 16 energy.",
+  "争夺蓝色补给点，双方靠近时暂停领取。": "Contest blue supply stations; neither player can collect while both are nearby.",
+  "后退防守 · 低段需蹲下防守 · 防御消耗能量": "Hold away to guard \u00b7 Crouch-guard low attacks \u00b7 Guarding costs energy",
+  "后退防守": "Back guard",
+  "下段防守": "Low guard",
+  "成功防守": "Blocked",
+  "防御崩解": "Guard broken",
+  "补给争夺中": "Supply contested",
+  "补给已就绪": "Supply ready",
+  "后退防守与资源争夺": "Guard and contest supplies",
+  "站在地面并按住远离敌人的方向可防守，承受少量伤害并消耗能量；低段攻击需蹲下＋后退防守，空中近战需站立防守。能量不足会防御崩解。木箱奖励 16 能量；蓝色补给会定时刷新，双方同时靠近时无法领取。": "Hold away while grounded to guard: take chip damage and spend energy. Crouch-guard low attacks; stand-guard aerial melee. Insufficient energy breaks your guard. Crates reward 16 energy. Blue supply stations respawn and cannot be collected while both players are nearby.",
+
   正在准备角色模型: "Preparing fighters",
   加载完成后开始倒数: "The countdown begins when loading is complete",
   "宇智波佐助": "Sasuke Uchiha",
@@ -265,16 +278,16 @@ export const english = {
     "Charge briefly, then unleash a joyful shockwave on both sides.",
   口袋街角: "Pocket Town",
   经典街区: "The neighborhood",
-  "58 米阳光长街，街角商店、花箱与远处的屋顶。沿着石板大道，展开一场新的冒险。":
-    "A sunny 58-meter street with corner shops, planters and distant rooftops. A new adventure starts on the cobblestones.",
+  "74 米阳光长街，街角商店、花箱与远处的屋顶。沿着石板大道，展开一场新的冒险。":
+    "A sunny 74-meter street with corner shops, planters and distant rooftops. A new adventure starts on the cobblestones.",
   落日天台: "Sunset Rooftop",
   暮色对决: "Golden-hour duel",
-  "64 米空中天台，玻璃栏杆外是层叠城市与落日。让整座城市见证这场对决。":
-    "A 64-meter rooftop above a layered city at sunset. Let the skyline witness your showdown.",
+  "80 米空中天台，玻璃栏杆外是层叠城市与落日。让整座城市见证这场对决。":
+    "An 80-meter rooftop above a layered city at sunset. Let the skyline witness your showdown.",
   月光花园: "Moon Garden",
   静夜奇遇: "After-dark adventure",
-  "60 米月光花园，石板路旁是樱树、灯笼与拱桥。萤火轻舞，远处的池水倒映月光。":
-    "A 60-meter moonlit garden of cherry trees, lanterns and bridges. Fireflies drift over a pool reflecting the moon.",
+  "76 米月光花园，石板路旁是樱树、灯笼与拱桥。萤火轻舞，远处的池水倒映月光。":
+    "A 76-meter moonlit garden of cherry trees, lanterns and bridges. Fireflies drift over a pool reflecting the moon.",
   "？": "?",
   "。": ".",
   漩涡鸣人: "Naruto Uzumaki",

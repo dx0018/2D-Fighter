@@ -360,19 +360,19 @@ export const maps = [
     tag: "经典街区",
     theme: "town",
     description:
-      "58 米阳光长街，街角商店、花箱与远处的屋顶。沿着石板大道，展开一场新的冒险。",
+      "74 米阳光长街，街角商店、花箱与远处的屋顶。沿着石板大道，展开一场新的冒险。",
     preview: {
       type: "rendered",
       theme: "town",
       src: "previews/pocket-town.webp",
     },
     colors: { sky: "#b8e6ef", ground: "#d6bd91", accent: "#54a69a" },
-    bounds: { left: -29, right: 29 },
+    bounds: { left: -37, right: 37 },
     spawns: [
       { x: -4.4, facing: 1 },
       { x: 4.4, facing: -1 },
     ],
-    camera: { minWidth: 26, maxWidth: 64, left: -36, right: 36, initialX: 0 },
+    camera: { minWidth: 26, maxWidth: 84, left: -44, right: 44, initialX: 0 },
     objects: [
       {
         id: "town-crate-1",
@@ -411,19 +411,19 @@ export const maps = [
     tag: "暮色对决",
     theme: "sunset",
     description:
-      "64 米空中天台，玻璃栏杆外是层叠城市与落日。让整座城市见证这场对决。",
+      "80 米空中天台，玻璃栏杆外是层叠城市与落日。让整座城市见证这场对决。",
     preview: {
       type: "rendered",
       theme: "sunset",
       src: "previews/sunset-rooftop.webp",
     },
     colors: { sky: "#e9a3a3", ground: "#9b8399", accent: "#ffca82" },
-    bounds: { left: -32, right: 32 },
+    bounds: { left: -40, right: 40 },
     spawns: [
       { x: -5, facing: 1 },
       { x: 5, facing: -1 },
     ],
-    camera: { minWidth: 27, maxWidth: 70, left: -39, right: 39, initialX: 0 },
+    camera: { minWidth: 27, maxWidth: 90, left: -47, right: 47, initialX: 0 },
     objects: [
       {
         id: "roof-crate-1",
@@ -462,19 +462,19 @@ export const maps = [
     tag: "静夜奇遇",
     theme: "moon",
     description:
-      "60 米月光花园，石板路旁是樱树、灯笼与拱桥。萤火轻舞，远处的池水倒映月光。",
+      "76 米月光花园，石板路旁是樱树、灯笼与拱桥。萤火轻舞，远处的池水倒映月光。",
     preview: {
       type: "rendered",
       theme: "moon",
       src: "previews/moon-garden.webp",
     },
     colors: { sky: "#444f82", ground: "#7c99a2", accent: "#b6e4d5" },
-    bounds: { left: -30, right: 30 },
+    bounds: { left: -38, right: 38 },
     spawns: [
       { x: -4.5, facing: 1 },
       { x: 4.5, facing: -1 },
     ],
-    camera: { minWidth: 26, maxWidth: 66, left: -37, right: 37, initialX: 0 },
+    camera: { minWidth: 26, maxWidth: 86, left: -45, right: 45, initialX: 0 },
     objects: [
       {
         id: "garden-crate",
@@ -507,3 +507,17 @@ export const maps = [
     ],
   },
 ];
+
+// Each arena has a central objective and flank caches, all defined as data.
+const supplyLayouts = [
+  {positions:[-20,0,20],energy:20,respawn:12},
+  {positions:[-23,2,23],energy:24,respawn:14},
+  {positions:[-21,-2,21],energy:18,respawn:10},
+];
+for(const [index,map] of maps.entries()){
+  const layout=supplyLayouts[index];
+  map.supplies=layout.positions.map((x,i)=>({id:`${map.id}-supply-${i}`,x,energy:layout.energy,respawn:layout.respawn,initialDelay:i===1?8:14,radius:1.25}));
+  for(const object of map.objects)if(object.type==='crate')object.energyReward=16;
+  for(const [i,x] of [-1,1].flatMap(side=>[side*19,side*(map.bounds.right-5)]).entries())
+    map.objects.push({id:`${map.id}-cache-${i}`,type:'crate',x,hp:24,width:1.2,height:1.1,color:map.objects[0].color,energyReward:16});
+}

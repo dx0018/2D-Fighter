@@ -143,7 +143,7 @@ export class CombatEffects {
       color = e.color || "#d6eeff",
       data = { group: g, parts: [], sparks: [], rings: [], poolKey };
     this.scene.add(g);
-    if (e.type === "hit") {
+    if (e.type === "hit" || e.type === "guard") {
       data.core = this.mesh(g, "star", "#fff6da");
       data.halo = this.glow(g, color, e.heavy ? 4.5 : 2.5, 0.55);
       data.ring = this.mesh(g, "ring", color, 0.8);
@@ -263,7 +263,7 @@ export class CombatEffects {
         a = clamp(1 - e.life / e.maxLife, 0, 1),
         fade = Math.pow(1 - a, 0.8);
       d.group.position.set(e.x, e.y, 0.35);
-      if (e.type === "hit") {
+      if (e.type === "hit" || e.type === "guard") {
         if (d.chakra) {
           spinChakraOrb(
             d.chakra,
@@ -365,7 +365,7 @@ export class CombatEffects {
         this.light.color.set(e.color);
       } else if (e.type === "pulse") {
         const radius = (e.radius || 6.8) * Math.min(1, a * 1.8);
-        d.halo.scale.setScalar(3 + a * 5);
+        d.halo.scale.setScalar(e.visual==='supply'?1.3+a*1.5:3+a*5);
         d.halo.material.opacity = fade * 0.5;
         d.core.scale.set(radius, Math.max(0.1, 1 - a) * 2.2, radius * 0.5);
         d.core.material.opacity = fade * 0.1;
@@ -391,7 +391,7 @@ export class CombatEffects {
           p.scale.setScalar((i % 3 ? 0.6 : 0.3) * fade);
           p.material.opacity = fade;
         });
-        light = Math.max(light, 5 * fade);
+        light = Math.max(light, (e.visual==='supply'?.6:5) * fade);
         this.light.position.copy(d.group.position);
         this.light.color.set(e.color);
       } else if (e.type === "slash" || e.type === "dash") {

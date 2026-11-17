@@ -99,6 +99,9 @@ export class GameAudio {
       }
       return;
     }
+    if(e.type==='supply'){this.tone(500,1000,.18,.07);this.tone(750,1400,.2,.05,'sine',.08);return;}
+    if(e.type==='guard'){this.noiseBurst(.07,3200,.08);this.tone(850,350,.09,.08,'triangle');return;}
+    if(e.type==='guardBreak'){this.noiseBurst(.2,1200,.16);this.tone(250,60,.25,.1,'triangle');return;}
     if (e.visual === "bijuu" && ["cast", "release", "hit"].includes(e.type)) {
       if (e.type === "cast") {
         this.tone(60, 190, 0.8, 0.12, "sine");

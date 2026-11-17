@@ -35,6 +35,7 @@ export function animateSasuke(m,f,dt,clock,opponent=null) {
     if(f.action==='victory'&&label==='R')target=[-.30,2.8,.3];
     if(!f.grounded)target=[side*.64,2.0,.25];
     if(attack&&label===front)target=[side*.25,1.9-m.sasukeCrouch*.75,.4+extension*.7];
+    if(f.guarding&&!cast)target=[side*.2,2.2,.5];
     if(visual==='fireball')target=[side*.12,2.35,.42];
     if(visual==='susanoo-arrow')target=[side*.12,1.95,.5];
     if(visual==='susanoo-slash')target=[side*.30,2.1,.6];

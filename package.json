@@ -20,7 +20,8 @@
     "previews": "node scripts/render-previews.mjs",
     "inspect:motion": "node scripts/inspect-motion.mjs",
     "inspect:flow": "node scripts/inspect-flow.mjs",
-    "profile": "node scripts/profile.mjs"
+    "profile": "node scripts/profile.mjs",
+    "test:arena": "node tests/arena-browser.mjs"
   },
   "dependencies": {
     "@fontsource/barlow-condensed": "^5.3.0",

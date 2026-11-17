@@ -9,6 +9,9 @@ const attributes = ["aria-label", "alt", "title"];
 export const getLanguage = () => language;
 
 const patterns = [
+  [/^P(\d) 补给 \+(\d+) EP$/, (p,n)=>`P${p} supply +${n} EP`],
+  [/^P(\d) 防御崩解！$/, p=>`P${p} GUARD BROKEN!`],
+  [/^补给刷新：(\d+) 秒$/, n=>`Supply in ${n} sec`],
   [/^确认 P(\d) 角色$/, (p) => `Confirm P${p}`],
   [/^P(\d) 获胜！$/, (p) => `P${p} WINS!`],
   [/^已选择：(.+)$/, (name) => `Selected: ${translate(name)}`],

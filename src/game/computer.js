@@ -25,7 +25,12 @@ export class ComputerPlayer {
     const ranged = ["projectile", "beam"].includes(self.character.moves.skill.kind);
     const comfortable = ranged ? 4.8 : 1.8;
     const input = {};
-    if (distance > comfortable + 0.5) input[toward] = true;
+    const supplies=(state.supplies||[]).filter(s=>s.active&&!s.contested);
+    if(self.energy<45&&distance>5&&supplies.length){
+      const closest=supplies.reduce((a,b)=>Math.abs(a.x-self.x)<Math.abs(b.x-self.x)?a:b);
+      input[closest.x>self.x?'right':'left']=true;
+    }
+    if (distance > comfortable + 0.5&&!Object.keys(input).length) input[toward] = true;
     else if (ranged && distance < 2.8 && self.x > game.map.bounds.left + 1 && self.x < game.map.bounds.right - 1)
       input[away] = true;
     const threat = state.projectiles.find(p => p.owner !== self.id &&
@@ -35,6 +40,12 @@ export class ComputerPlayer {
       else input.jump = true;
     } else if (self.grounded && distance < 5 && this.random() < 0.09) input.jump = true;
 
+    const defending=self.grounded&&rival.currentMove&&distance<6&&this.random()<.4;
+    if(defending){delete input[toward];delete input.jump;delete input.crouch;input[away]=true;
+      const move=rival.currentMove.move;
+      const overhead=!rival.grounded&&move.kind!=='projectile';
+      if(!overhead&&(move.hitY??move.height??1.35)<.9)input.crouch=true;
+    }
     const usable = (key, context) => {
       const move = selectMove(self.character, key, context);
       return self.cooldowns[key] <= 0 && self.energy >= move.cost;
@@ -42,7 +53,7 @@ export class ComputerPlayer {
     const context = moveContext(self, input, rival, !!input.jump);
     const ultimate = selectMove(self.character, "ultimate", context);
     const ultimateRange = ultimate.kind === "projectile" ? 16 : ultimate.range * 0.85;
-    if (!self.currentMove && self.stun <= 0) {
+    if (!defending && !self.currentMove && self.stun <= 0) {
       if (distance < ultimateRange && distance > 1.2 && usable("ultimate", context) && this.random() < 0.32) {
         input.ultimate = true;
       } else if (distance < selectMove(self.character, "attack", context).range * 0.95 && usable("attack", context) && this.random() < 0.8) {

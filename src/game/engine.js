@@ -1,4 +1,5 @@
 /** Deterministic combat core. No DOM, timers or renderer dependency. */
+import { createSupplies, updateSupplies, updateGuard, guardContact } from "./arena-rules.js";
 import { susanooArchery } from "./susanoo-archery.js";
 import { moveContext, selectMove, recoveryMovement } from "./moves.js";
 import { segmentHitsBox, fighterHeight } from "./collision.js";
@@ -32,6 +33,7 @@ export class Game {
         cooldowns: { attack: 0, skill: 0, ultimate: 0 },
         cooldownTotals: { attack: 1, skill: 1, ultimate: 1 },
         action: "idle",
+        guarding:false,guardLow:false,guardFacing:0,guardFlash:0,guardBreak:0,
         actionTime: 0,
         stun: 0,
         flash: 0,
@@ -61,6 +63,7 @@ export class Game {
         shake: 0,
         flash: 0,
       })),
+      supplies:createSupplies(this.map),
       projectiles: [],
       effects: [],
       time: 99,
@@ -130,6 +133,8 @@ export class Game {
       for (const f of s.fighters) {
         f.actionTime += dt;
         f.flash = Math.max(0, f.flash - dt);
+        f.guardFlash = Math.max(0,f.guardFlash-dt);
+        f.guardBreak = Math.max(0,f.guardBreak-dt);
       }
       return;
     }
@@ -199,6 +204,8 @@ export class Game {
       f.invulnerable = Math.max(0, f.invulnerable - dt);
       f.stun = Math.max(0, f.stun - dt);
       f.landingTimer = Math.max(0, f.landingTimer - dt);
+      f.guardFlash = Math.max(0,f.guardFlash-dt);
+      f.guardBreak = Math.max(0,f.guardBreak-dt);
       f.energy = Math.min(f.character.maxEnergy, f.energy + dt * 5);
       for (const key of ["attack", "skill", "ultimate"])
         f.cooldowns[key] = Math.max(0, f.cooldowns[key] - dt);
@@ -309,6 +316,7 @@ export class Game {
                 : "idle",
         );
       }
+      updateGuard(f,other,inputs[id]);
       const oldX = f.x;
       f.x = clamp(
         f.x + f.vx * dt,
@@ -351,6 +359,7 @@ export class Game {
     this.updateProjectiles(dt, contacts);
     for (const contact of contacts) this.applyContact(contact);
     this.checkEnd();
+    if(s.phase==="fighting")updateSupplies(this,dt);
   }
   setAction(f, action) {
     if (f.action !== action) {
@@ -611,12 +620,31 @@ export class Game {
             0.9,
             { direction },
           );
+          if(object.energyReward){
+            const gain=Math.min(object.energyReward,attacker.character.maxEnergy-attacker.energy);
+            attacker.energy+=gain;
+            if(gain>0)this.event("supply",{player:attacker.id,energy:Math.round(gain),station:object.id});
+          }
           this.event("break", { object: object.id, player: attacker.id });
         } else
           this.event("objectHit", { object: object.id, player: attacker.id });
       } else
         this.event("objectHit", { object: object.id, player: attacker.id });
       return;
+    }
+    const guarded=guardContact(attacker,target,move,direction);
+    if(guarded==='blocked'){
+      const chip=Math.max(1,Math.ceil(move.damage*.2));
+      target.hp=Math.max(0,target.hp-chip);target.guardFlash=.22;
+      target.stun=Math.max(target.stun,.075);target.invulnerable=.06;
+      target.vx=direction*(move.knockback||3)*.25;
+      this.state.hitstop=Math.max(this.state.hitstop,.025);
+      this.effect("guard",target.x-direction*.35,target.y+1.35,"#9cdeff",.23,{direction});
+      this.event("guard",{player:target.id,damage:chip});return;
+    }
+    if(guarded==='broken'){
+      this.effect("pulse",target.x,target.y+1,"#ffb06b",.35,{radius:1.5});
+      this.event("guardBreak",{player:target.id});
     }
     // Contacts were validated together; do not reject a second hit in a fair trade.
     target.hp = Math.max(0, target.hp - move.damage);
@@ -636,7 +664,7 @@ export class Game {
       move.impact?.stop ?? 0.055,
     );
     this.state.impactPulse = move.damage >= 30 ? 0.65 : 0.24;
-    target.stun = move.stun;
+    target.stun = move.stun+(guarded==='broken'?.18:0);
     target.invulnerable = 0.12;
     target.flash = 0.16;
     target.vx = direction * move.knockback;
@@ -705,6 +733,7 @@ export class Game {
     s.hitstop = 0;
     for (const f of s.fighters) {
       f.currentMove = null;
+      f.guarding = false;
       f.bufferedMove = null;
       f.jumpBuffer = 0;
       f.jumpStartup = 0;

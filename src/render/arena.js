@@ -11,6 +11,7 @@ import { disposeTree, softShadow } from "./primitives.js";
 import { bakeStaticShadows } from "./static-shadows.js";
 import { RenderQuality } from "./quality.js";
 import { localize } from "../i18n/index.js";
+import { makeSupply } from "./arena-supplies.js";
 export { registerFighterModel };
 export class ArenaRenderer {
   constructor(container, { map, characters, onError, quality = "auto" } = {}) {
@@ -152,6 +153,7 @@ export class ArenaRenderer {
         this.objects.set(data.id, m);
         this.scene.add(m.root);
       }
+      this.supplies=(map.supplies||[]).map(data=>{const item=makeSupply(data);this.scene.add(item.root);return item;});
       this.fx = new CombatEffects(this.scene);
     } catch (error) {
       this.renderer?.dispose();
@@ -253,6 +255,7 @@ export class ArenaRenderer {
           Math.sin(this.clock * 24) * (o.shake || 0) * 0.34;
       m.shape.scale.setScalar(1 + (o.flash > 0 ? 0.045 : 0));
     }
+    for(const [i,supply] of (state.supplies||[]).entries())this.supplies[i]?.update(supply,this.clock);
     this.stage.update(this.clock);
     this.fx.update(state, this.clock);
     this.renderer.render(this.scene, this.camera);

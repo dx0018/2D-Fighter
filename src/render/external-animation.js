@@ -167,7 +167,8 @@ function poseAim(m, f, cast, walking) {
   const rig = m.character.model.rig;
   let pose = null,
     bilateral = false;
-  if (cast?.key === "attack") pose = "punch";
+  if (f.guarding && !cast) {pose="guard";bilateral=true;}
+  else if (cast?.key === "attack") pose = "punch";
   else if (cast?.move.visual === "rasengan") pose = "rasengan";
   else if (cast?.move.visual === "bijuu") {
     pose = "bijuu";
@@ -187,7 +188,9 @@ function poseAim(m, f, cast, walking) {
       ? [[m.bones.Upper_Arm_L, m.bones.Forearm_L, m.bones.Hand_L], [m.bones.Upper_Arm_R, m.bones.Forearm_R, m.bones.Hand_R]]
       : [[m.bones.UpperArm_L, m.bones.Forearm_L, m.bones.Hand_L], [m.bones.UpperArm_R, m.bones.Forearm_R, m.bones.Hand_R]];
   const front = (f.facing > 0 ? 0 : 1) ^ (m.frontAxis < 0 ? 1 : 0),
-    targets = pose === "beam"
+    targets = pose === "guard"
+      ? [[.22,2.05,.5],[-.22,2.05,.5]]
+      : pose === "beam"
       ? [[0.45, 2.16, 0.1], [-0.45, 2.16, 0.1]]
       : pose === "pulse"
         ? [[0.85, 1.55, 0.2], [-0.85, 1.55, 0.2]]
