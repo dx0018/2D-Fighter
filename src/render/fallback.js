@@ -63,7 +63,7 @@ export function drawFallback(state) {
     c.fill();
   };
   state.fighters.forEach((f, i) => {
-    if (f.character.bodyStyle === "ninja") {
+    if (["ninja", "sasuke"].includes(f.character.bodyStyle)) {
       drawNaruto(c, px(f.x), base - f.y * scale, scale, f, this.clock);
       return;
     }

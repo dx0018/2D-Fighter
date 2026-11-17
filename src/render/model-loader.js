@@ -5,6 +5,9 @@ import { makeChakraOrb, makeKuramaAura, setBijuuModel, attachBijuuModel } from "
 
 import { makeKuramaSummon } from "./kurama-summon.js";
 
+import { captureBones } from "./articulated-pose.js";
+import { makeSasukeEffects } from "./sasuke-effects.js";
+
 const cache = new Map();
 const assetBase = import.meta.env?.BASE_URL || "/";
 const load = (url) => {
@@ -195,7 +198,32 @@ export async function loadFighterModel(character) {
     node.material = Array.isArray(node.material) ? copy : copy[0];
   });
 
-  if (character.model.rig === "mixamo") {
+  if (character.model.rig === "sasuke") {
+    m.bones = captureBones(actor);
+    m.sasukeFx = makeSasukeEffects();
+    m.root.add(m.sasukeFx.skeleton.root, m.sasukeFx.sword, m.sasukeFx.slash, m.sasukeFx.lightning, m.sasukeFx.charge, m.sasukeFx.string);
+    try {
+      const full = await load(`${assetBase}models/susanoo.glb`);
+      m.fullSusanoo = cloneSkeleton(full.scene);
+      m.fullBones = captureBones(m.fullSusanoo);
+      m.fullMaterials = [];
+      m.fullSusanoo.traverse(node => {
+        if (!node.isMesh) return;
+        node.geometry.userData.sharedAsset = true;
+        node.castShadow = false;
+        const base = Array.isArray(node.material) ? node.material : [node.material];
+        const materials = base.map(source => {
+          const material = source.clone();
+          material.userData.sharedTextures = true;
+          material.color.set("#ffffff");material.emissive.set("#65338e");material.emissiveIntensity=.12;
+          material.transparent=true;material.opacity=.8;material.depthWrite=true;material.roughness=.9;
+          m.fullMaterials.push(material);return material;
+        });
+        node.material=Array.isArray(node.material)?materials:materials[0];
+      });
+      m.fullSusanoo.visible=false;m.root.add(m.fullSusanoo);
+    } catch(error) {console.warn("Using skeletal Susanoo fallback:",error);}
+  } else if (character.model.rig === "mixamo") {
     for (const [key, names] of Object.entries({
       hips: ["mixamorigHips_01"],
       chest: ["mixamorigSpine2_04"],

@@ -2,6 +2,7 @@
  * A renderer can use `model` or fall back to the procedural `bodyStyle`.
  * Moves are independent data; kinds are resolved by the combat engine.
  */
+import { sasuke } from "./sasuke.js";
 import { naruto } from "./naruto.js";
 const assetBase = import.meta.env?.BASE_URL || "/";
 export const characters = [
@@ -345,6 +346,7 @@ export const characters = [
     },
   },
   naruto,
+  sasuke,
 ];
 
 /** Coordinates use world units. Floor y = 0; spawn x/facing are per-player.

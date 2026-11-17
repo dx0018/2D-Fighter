@@ -1,3 +1,4 @@
+import { makeSasukeProjectile } from "./sasuke-effects.js";
 import * as THREE from "three";
 import { clamp } from "./primitives.js";
 import {
@@ -470,7 +471,7 @@ export class CombatEffects {
       if (!p) return;
       d.group.position.set(p.x, p.y, 0);
       d.group.rotation.set(0, 0, Math.atan2(p.vy || 0, p.vx ?? p.direction));
-      const special = ["bijuu", "kunai"].includes(p.move?.visual)
+      const special = ["bijuu", "kunai", "fireball", "susanoo-arrow"].includes(p.move?.visual)
         ? p.move.visual
         : null;
       const normalParts = [d.core, d.shell, d.glow, ...d.rings];
@@ -480,7 +481,7 @@ export class CombatEffects {
       d.specials ??= new Map();
       if (special && !d.specials.has(special)) {
         const object =
-          special === "bijuu" ? makeChakraOrb("bijuu") : makeKunai();
+          special === "bijuu" ? makeChakraOrb("bijuu") : special === "kunai" ? makeKunai() : makeSasukeProjectile(special);
         d.specials.set(special, object);
         d.group.add(object);
         rememberGeometry(d, object);
@@ -490,6 +491,10 @@ export class CombatEffects {
       if (special) {
         const object = d.specials.get(special);
         if (special === "bijuu") spinChakraOrb(object, clock, p.radius);
+        else if (special === "fireball") {
+          object.scale.setScalar(p.radius / .5);
+          object.rotation.x = clock * 7;
+        }
         return;
       }
       d.shell.material.color.set(p.color);

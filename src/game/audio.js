@@ -86,6 +86,19 @@ export class GameAudio {
   play(e) {
     if (!this.enabled || !this.context || this.context.state !== "running")
       return;
+    if (["susanoo-arrow", "susanoo-slash", "fireball", "chidori"].includes(e.visual) && ["cast", "release", "hit"].includes(e.type)) {
+      const arrow = e.visual === "susanoo-arrow";
+      if (arrow && e.type === "cast") {
+        this.tone(130, 580, 1.1, .09, "triangle");
+        this.noiseBurst(.65, 1800, .04);
+      } else if (e.visual === "fireball") {
+        this.noiseBurst(.28, 1000, .14); this.tone(150, 55, .25, .1, "sawtooth");
+      } else {
+        this.noiseBurst(arrow ? .35 : .18, 2400, .15);
+        this.tone(arrow ? 700 : 450, 95, .25, .12, "triangle");
+      }
+      return;
+    }
     if (e.visual === "bijuu" && ["cast", "release", "hit"].includes(e.type)) {
       if (e.type === "cast") {
         this.tone(60, 190, 0.8, 0.12, "sine");

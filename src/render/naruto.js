@@ -11,12 +11,13 @@ import {
 } from "./primitives.js";
 import { makeChakraOrb } from "./ninja-effects.js";
 
-export function naruto() {
+export function naruto(character = {}) {
+  const sasuke = character.id === "sasuke";
   const m = rig("naruto"),
-    orange = skin(m, "#f78a24"),
+    orange = skin(m, sasuke ? "#b8bcc9" : "#f78a24"),
     charcoal = skin(m, "#24344b"),
     face = skin(m, "#f5c89e"),
-    gold = skin(m, "#ffd34e"),
+    gold = skin(m, sasuke ? "#151d2c" : "#ffd34e"),
     ink = surface("#493d38"),
     steel = skin(m, "#a9c2ce");
   orange.roughness = 0.7;
@@ -101,7 +102,7 @@ export function naruto() {
     ball(eye, surface("#fffdf6"), [0, 0, 0.012], [0.14, 0.085, 0.028]);
     const pupil = ball(
       eye,
-      surface("#249edb"),
+      surface(sasuke ? "#aa273f" : "#249edb"),
       [-side * 0.015, 0, 0.039],
       [0.055, 0.068, 0.015],
     );

@@ -351,7 +351,7 @@ const builders = new Map([
   ["robot-cat", doraemon],
   ["antenna", po],
   ["ninja", naruto],
-  ["ninja", naruto],
+  ["sasuke", naruto],
 ]);
 export const registerFighterModel = (style, builder) =>
   builders.set(style, builder);

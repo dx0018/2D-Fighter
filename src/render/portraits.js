@@ -3,6 +3,9 @@ let uid = 0;
 export function createPortrait(character, fallback = false) {
   if (character.previewImage && !fallback)
     return `<img class="rendered-portrait" src="${import.meta.env.BASE_URL}${character.previewImage}" alt="${character.name} 3D 预览" data-character-preview="${character.id}" decoding="async">`;
+  if (character.id === "sasuke") return narutoPortrait(character.name)
+    .replaceAll("#ffd34c", "#18202c").replaceAll("#f4902d", "#b9bdca")
+    .replaceAll("#ef882c", "#303341").replaceAll("#279ed7", "#bd334e");
   if (character.bodyStyle === "ninja") return narutoPortrait(character.name);
   const id = `p${uid++}`;
   const dora = character.bodyStyle !== "antenna" && character.id !== "po";

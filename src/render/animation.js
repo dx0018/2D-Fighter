@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { animateSasuke } from "./sasuke-animation.js";
 import { clamp, damp, ease } from "./primitives.js";
 import { poseChain } from "./rig.js";
 import { sampleStep, updateGait } from "./locomotion.js";
@@ -34,7 +35,8 @@ export function animateFighter(m, f, dt, clock, index = 0, hitstop = 0) {
     const contactFrame = hitstop > 0 && !m.frozen;
     m.frozen = hitstop > 0;
     if (hitstop > 0) dt = contactFrame ? Math.max(dt, 1 / 30) : 0;
-    animateExternal(m, f, dt, clock, hitstop);
+    if (m.type === "sasuke") animateSasuke(m, f, dt, clock);
+    else animateExternal(m, f, dt, clock, hitstop);
     return;
   }
   const po = m.type === "po",

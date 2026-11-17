@@ -28,7 +28,7 @@ try {
   await click("start");
   assert.equal(
     await page.locator('[data-action="choose-character"]').count(),
-    6,
+    8,
   );
   await page.click(
     '[data-action="choose-character"][data-player="0"][data-index="2"]',
