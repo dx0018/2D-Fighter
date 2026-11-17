@@ -170,7 +170,7 @@ function showMaps() {
   teardown();
   page = "maps";
   renderPage(
-    `${header()}<main class="flow-main">${steps(1)}<div class="section-heading"><div><div class="eyebrow">PICK YOUR PLAYGROUND</div><h1>找个地方，过两招<span>。</span></h1><p>每一处街角，都有不一样的故事。</p></div><button class="button ghost" data-action="random">⚄ 随机选图</button></div><div class="map-layout"><div class="map-list">${maps.map((m, i) => `<button class="map-card ${selectedMap === i ? "selected" : ""}" data-action="choose-map" data-index="${i}" aria-pressed="${selectedMap === i}"><div class="map-thumb">${mapArt(m)}<span>${m.tag || "LOCAL ARENA"}</span></div><div class="map-caption"><span><small>STAGE 0${i + 1}</small><b>${esc(m.name)}</b></span><i>${selectedMap === i ? "✓" : "↗"}</i></div></button>`).join("")}</div><aside class="map-detail"><div class="eyebrow">YOUR NEXT DESTINATION</div><h2>${esc(maps[selectedMap].name)}</h2><p>${esc(maps[selectedMap].description)}</p><div class="map-properties"><span>场地跨度 <b>${maps[selectedMap].bounds.right - maps[selectedMap].bounds.left} m</b></span><span>互动机关 <b>${maps[selectedMap].objects.length} 处</b></span><span>能量补给 <b>${maps[selectedMap].supplies.length} 处</b></span><span>对战规则 <b>99 秒 · 一局定胜负</b></span></div><div class="map-matchup">${getChars()
+    `${header()}<main class="flow-main">${steps(1)}<div class="section-heading"><div><div class="eyebrow">PICK YOUR PLAYGROUND</div><h1>找个地方，过两招<span>。</span></h1><p>每一处街角，都有不一样的故事。</p></div><button class="button ghost" data-action="random">⚄ 随机选图</button></div><div class="map-layout"><div class="map-list">${maps.map((m, i) => `<button class="map-card ${selectedMap === i ? "selected" : ""}" data-action="choose-map" data-index="${i}" aria-pressed="${selectedMap === i}"><div class="map-thumb">${mapArt(m)}<span>${m.tag || "LOCAL ARENA"}</span></div><div class="map-caption"><span><small>STAGE 0${i + 1}</small><b>${esc(m.name)}</b></span><i>${selectedMap === i ? "✓" : "↗"}</i></div></button>`).join("")}</div><aside class="map-detail"><div class="eyebrow">YOUR NEXT DESTINATION</div><h2>${esc(maps[selectedMap].name)}</h2><p>${esc(maps[selectedMap].description)}</p><div class="map-properties"><span>场地跨度 <b>${maps[selectedMap].bounds.right - maps[selectedMap].bounds.left} m</b></span><span>互动机关 <b>${maps[selectedMap].objects.length} 处</b></span><span>能量补给 <b>${maps[selectedMap].supplies.length} 处</b></span><span>对战规则 <b>99 秒 · 三局两胜</b></span></div><div class="map-matchup">${getChars()
       .map(
         (c, p) =>
           `<div><div class="mini-portrait">${createPortrait(c)}</div><span class="p${p + 1}">P${p + 1}<b>${esc(c.name)}</b></span></div>`,
@@ -233,10 +233,10 @@ function startFight() {
   finishedHandled = false;
   const cs = getChars(),
     map = maps[selectedMap];
-  game = new Game({ characters: cs, map, onEvent: matchEvent });
+  game = new Game({ characters: cs, map, onEvent: matchEvent, roundsToWin: 2 });
   computer = opponent === "computer" ? new ComputerPlayer() : null;
   renderPage(
-    `${header()}<main class="battle-main"><div class="battle-heading"><span><i></i> LIVE MATCH <b>${esc(map.name)}</b></span><div><button class="text-button" data-action="help">? 操作</button><button class="text-button" data-action="fullscreen">⛶ 全屏</button><button class="button compact" data-action="pause">Ⅱ 暂停 <kbd>ESC</kbd></button></div></div><section class="battle-shell" id="battle-shell" aria-label="双人格斗场"><div id="battle-arena" class="battle-arena"></div><div class="battle-hud">${hudPlayer(cs[0], 0)}<div class="round-timer"><small>ROUND 01</small><b id="timer">99</b><span>ONE GOOD FIGHT</span></div>${hudPlayer(cs[1], 1)}</div><div id="impact-vignette" class="impact-vignette"></div><div class="combat-callouts">${[0, 1].map((p) => `<div id="super-${p}" class="super-callout super-p${p + 1}"><small>PLAYER 0${p + 1} · ULTIMATE</small><b></b></div><div id="combo-${p}" class="combo-callout combo-p${p + 1}"><b></b><small></small><em></em></div>`).join("")}</div><div class="battle-overlay" id="battle-overlay" aria-live="polite"></div><div class="arena-location"><span>STAGE 0${selectedMap + 1}</span><b>${esc(map.englishName)}</b></div><div id="feedback" class="battle-feedback" aria-live="polite"></div></section><div class="battle-bottom">${skillTray(cs[0], 0)}<span class="battle-center-label">POCKET<br><b>CLASH.</b></span>${skillTray(cs[1], 1)}</div><div class="battle-controls-note"><span><b class="p1">P1</b> WASD 移动 / 跳跃 / 蹲下</span><span>命中确认后可接招 · 命中回复能量 · 大招消耗 70 EP</span><span><b class="p2">P2</b> ${opponent === "computer" ? "电脑自动操作" : "方向键 移动 / 跳跃 / 蹲下"}</span></div><div class="arena-rules"><span>后退防守 · 低段需蹲下防守 · 防御消耗能量</span><b id="supply-status" aria-live="polite"></b></div><details class="touch-controls"><summary>屏幕操作面板 <span>适合触屏体验；双人推荐键盘</span></summary>${touchPad(0)}${touchPad(1)}</details></main>${footer()}`,
+    `${header()}<main class="battle-main"><div class="battle-heading"><span><i></i> LIVE MATCH <b>${esc(map.name)}</b></span><div><button class="text-button" data-action="help">? 操作</button><button class="text-button" data-action="fullscreen">⛶ 全屏</button><button class="button compact" data-action="pause">Ⅱ 暂停 <kbd>ESC</kbd></button></div></div><section class="battle-shell" id="battle-shell" aria-label="双人格斗场"><div id="battle-arena" class="battle-arena"></div><div class="battle-hud">${hudPlayer(cs[0], 0)}<div class="round-timer"><small id="round-label">第 1 局／共 3 局</small><b id="timer">99</b><span class="round-score" id="round-score">P1 0 — 0 P2</span></div>${hudPlayer(cs[1], 1)}</div><div id="impact-vignette" class="impact-vignette"></div><div class="combat-callouts">${[0, 1].map((p) => `<div id="super-${p}" class="super-callout super-p${p + 1}"><small>PLAYER 0${p + 1} · ULTIMATE</small><b></b></div><div id="combo-${p}" class="combo-callout combo-p${p + 1}"><b></b><small></small><em></em></div>`).join("")}</div><div class="battle-overlay" id="battle-overlay" aria-live="polite"></div><div class="arena-location"><span>STAGE 0${selectedMap + 1}</span><b>${esc(map.englishName)}</b></div><div id="feedback" class="battle-feedback" aria-live="polite"></div></section><div class="battle-bottom">${skillTray(cs[0], 0)}<span class="battle-center-label">POCKET<br><b>CLASH.</b></span>${skillTray(cs[1], 1)}</div><div class="battle-controls-note"><span><b class="p1">P1</b> WASD 移动 / 跳跃 / 蹲下</span><span>命中确认后可接招 · 命中回复能量 · 大招消耗 70 EP</span><span><b class="p2">P2</b> ${opponent === "computer" ? "电脑自动操作" : "方向键 移动 / 跳跃 / 蹲下"}</span></div><div class="arena-rules"><span>后退防守 · 低段需蹲下防守 · 防御消耗能量</span><b id="supply-status" aria-live="polite"></b></div><details class="touch-controls"><summary>屏幕操作面板 <span>适合触屏体验；双人推荐键盘</span></summary>${touchPad(0)}${touchPad(1)}</details></main>${footer()}`,
   );
   try {
     arena = new ArenaRenderer(document.querySelector("#battle-arena"), {
@@ -356,6 +356,8 @@ function updateHud(dt = 1 / 60) {
   const supplies=s.supplies||[];
   const live=supplies.filter(p=>p.active);
   hudText("#supply-status",live.length ? (live.some(p=>p.contested)?"补给争夺中":"补给已就绪") : supplies.length ? `补给刷新：${Math.ceil(Math.min(...supplies.map(p=>p.remaining)))} 秒` : "");
+  hudText("#round-label", `第 ${s.round} 局／共 ${s.roundsTotal} 局`);
+  hudText("#round-score", `P1 ${s.roundsWon[0]} — ${s.roundsWon[1]} P2`);
   hudText("#timer", String(Math.max(0, Math.ceil(s.time))).padStart(2, "0"));
   hudNode("#timer").classList.toggle("urgent", s.time < 15);
   hudStyle(
@@ -370,9 +372,11 @@ function updateHud(dt = 1 / 60) {
     const markup =
       arena?.modelsReady === false
         ? `<div class="countdown"><span>正在准备角色模型</span><b>…</b><small>加载完成后开始倒数</small></div>`
-        : s.phase === "countdown"
-        ? `<div class="countdown"><span>准备好了吗？</span><b>${s.countdown > 0.7 ? Math.ceil(s.countdown) : "开战！"}</b><small>${esc(getChars()[0].name)} <i>VS</i> ${esc(getChars()[1].name)}</small></div>`
-        : "";
+        : s.phase === "intermission"
+          ? `<div class="round-break"><span>第 ${s.round} 局结束</span><b>${s.roundWinner === "draw" ? "本局平局" : `P${s.roundWinner + 1} 赢下第 ${s.round} 局`}</b><small>P1 ${s.roundsWon[0]} — ${s.roundsWon[1]} P2</small><i>下一局即将开始</i></div>`
+          : s.phase === "countdown"
+            ? `<div class="countdown"><span>${s.round > 1 ? `第 ${s.round} 局 · 准备好了吗？` : "准备好了吗？"}</span><b>${s.countdown > 0.7 ? Math.ceil(s.countdown) : "开战！"}</b><small>${esc(getChars()[0].name)} <i>VS</i> ${esc(getChars()[1].name)}</small></div>`
+            : "";
     if (overlay.dataset.phaseMarkup !== markup) {
       overlay.innerHTML = markup;
       overlay.dataset.phaseMarkup = markup;
@@ -390,8 +394,9 @@ function showResults() {
   const winner = game.state.winner,
     draw = winner === "draw" || winner === null;
   const c = draw ? null : getChars()[winner];
+  const matchScore = `P1 ${game.state.roundsWon[0]} — ${game.state.roundsWon[1]} P2`;
   document.querySelector("#battle-overlay").innerHTML =
-    `<div class="result-card"><div class="eyebrow">${draw ? "A MATCH TO REMEMBER" : "THAT WAS A GOOD FIGHT"}</div><h2>${draw ? "势均力敌！" : `P${winner + 1} 获胜！`}</h2>${c ? `<div class="result-portrait">${createPortrait(c)}</div><h3>${esc(c.name)}</h3>` : '<div class="draw-symbol">VS</div>'}<p>${draw ? "这次不分高下，再来一场？" : opponent === "computer" ? "再挑战一次电脑，试试不同的招式吧。" : "漂亮的一战，和朋友再切磋一回吧。"}</p><div class="result-summary">${getChars()
+    `<div class="result-card"><div class="eyebrow">${draw ? "A MATCH TO REMEMBER" : "THAT WAS A GOOD FIGHT"}</div><h2>${draw ? "势均力敌！" : `P${winner + 1} 获胜！`}</h2>${c ? `<div class="result-portrait">${createPortrait(c)}</div><h3>${esc(c.name)}</h3>` : '<div class="draw-symbol">VS</div>'}<p>${draw ? "这次不分高下，再来一场？" : opponent === "computer" ? "再挑战一次电脑，试试不同的招式吧。" : "漂亮的一战，和朋友再切磋一回吧。"}</p><div class="result-match-score"><span>本场比分</span><b>${matchScore}</b></div><div class="result-summary">${getChars()
       .map(
         (c, p) =>
           `<span><b class="p${p + 1}">P${p + 1}</b> ${esc(c.name)} <small>${Math.ceil(game.state.fighters[p].hp)} HP</small></span>`,
@@ -409,7 +414,7 @@ function togglePause(force) {
   input.enabled = !paused;
   const overlay = document.querySelector("#battle-overlay");
   if (paused) {
-    overlay.innerHTML = `<div class="pause-card"><div class="eyebrow">TAKE A LITTLE BREATHER</div><h2>稍作休息<span>。</span></h2><p>对战已暂停，准备好后继续。</p><button class="button primary full" data-action="pause">继续对战 <span>▶</span></button><button class="button ghost full" data-action="rematch">重新开始本局 ↻</button><div class="result-links"><button data-action="reselect">重新选人</button><button data-action="home">返回主页</button></div></div>`;
+    overlay.innerHTML = `<div class="pause-card"><div class="eyebrow">TAKE A LITTLE BREATHER</div><h2>稍作休息<span>。</span></h2><p>对战已暂停，准备好后继续。</p><button class="button primary full" data-action="pause">继续对战 <span>▶</span></button><button class="button ghost full" data-action="rematch">从第一局重开（比分归零） ↻</button><div class="result-links"><button data-action="reselect">重新选人</button><button data-action="home">返回主页</button></div></div>`;
   } else {
     overlay.innerHTML = "";
     delete overlay.dataset.phaseMarkup;
@@ -445,7 +450,7 @@ function showHelp() {
     )
     .join(
       "",
-    )}</div><div class="help-rules"><p><b>命中确认连段</b>普攻命中后，快速按技能或大招键可提前取消收招；技能命中后也可接大招。落空或被防守不能提前取消；连段大招会压住对手直到释放。</p><p><b>打出你的节奏</b>普攻近距离生效；技能与大招具有不同范围。每次按下触发一次招式，观察下方冷却与能量提示。</p><p><b>99 秒，一局定胜负</b>生命归零即结束；时间耗尽比较剩余生命比例，同时归零或生命比例相同为平局。木箱可破坏，招牌会响应攻击。</p><p><b>后退防守与资源争夺</b>站在地面并按住远离敌人的方向可防守，承受少量伤害并消耗能量；低段攻击需蹲下＋后退防守，空中近战需站立防守。能量不足会防御崩解。木箱奖励 16 能量；蓝色补给会定时刷新，双方同时靠近时无法领取。</p><p><b>暂停与声音</b>按 Esc 暂停。切换窗口会自动暂停。右上角音符可开关合成音效。</p></div><button class="button primary full" data-action="close-help">明白了，出发！ <span>→</span></button></section>`;
+    )}</div><div class="help-rules"><p><b>命中确认连段</b>普攻命中后，快速按技能或大招键可提前取消收招；技能命中后也可接大招。落空或被防守不能提前取消；连段大招会压住对手直到释放。</p><p><b>打出你的节奏</b>普攻近距离生效；技能与大招具有不同范围。每次按下触发一次招式，观察下方冷却与能量提示。</p><p><b>三局两胜 · 每局 99 秒</b>生命归零或时间结束时赢下一局，先赢两局者获胜；平局不计分，打满三局仍同分则整场平局。木箱可破坏，招牌会响应攻击。</p><p><b>后退防守与资源争夺</b>站在地面并按住远离敌人的方向可防守，承受少量伤害并消耗能量；低段攻击需蹲下＋后退防守，空中近战需站立防守。能量不足会防御崩解。木箱奖励 16 能量；蓝色补给会定时刷新，双方同时靠近时无法领取。</p><p><b>暂停与声音</b>按 Esc 暂停。切换窗口会自动暂停。右上角音符可开关合成音效。</p></div><button class="button primary full" data-action="close-help">明白了，出发！ <span>→</span></button></section>`;
   el.dataset.resume = String(resume);
   el.querySelector(".help-rules").insertAdjacentHTML(
     "beforebegin",

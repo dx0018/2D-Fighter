@@ -7,12 +7,14 @@ const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const EPS = 1e-7;
 const KEYS = ["jump", "attack", "skill", "ultimate"];
 export class Game {
-  constructor({ characters, map, onEvent = () => {} }) {
+  constructor({ characters, map, onEvent = () => {}, roundsToWin = 1 }) {
     if (characters?.length !== 2 || !map?.spawns?.[1])
       throw new Error("A match requires two characters and a valid map");
     this.characters = characters;
     this.map = map;
     this.onEvent = onEvent;
+    this.roundsToWin = Math.max(1, Math.floor(roundsToWin));
+    this.roundsTotal = this.roundsToWin * 2 - 1;
     this.reset();
   }
   reset() {
@@ -70,6 +72,12 @@ export class Game {
       projectiles: [],
       effects: [],
       time: 99,
+      round: 1,
+      roundsToWin: this.roundsToWin,
+      roundsTotal: this.roundsTotal,
+      roundsWon: [0, 0],
+      roundWinner: null,
+      intermissionTime: 0,
       phase: "countdown",
       countdown: 3,
       winner: null,
@@ -78,6 +86,13 @@ export class Game {
       impactPulse: 0,
     };
     this.lastCountdown = 3;
+  }
+  startNextRound() {
+    const round = this.state.round + 1;
+    const roundsWon = [...this.state.roundsWon];
+    this.reset();
+    this.state.round = round;
+    this.state.roundsWon = roundsWon;
   }
   event(type, detail = {}) {
     this.onEvent({ type, ...detail });
@@ -139,6 +154,17 @@ export class Game {
         f.guardFlash = Math.max(0,f.guardFlash-dt);
         f.guardBreak = Math.max(0,f.guardBreak-dt);
       }
+      return;
+    }
+    if (s.phase === "intermission") {
+      s.intermissionTime = Math.max(0, s.intermissionTime - dt);
+      for (const f of s.fighters) {
+        f.actionTime += dt;
+        f.flash = Math.max(0, f.flash - dt);
+        f.guardFlash = Math.max(0, f.guardFlash - dt);
+        f.guardBreak = Math.max(0, f.guardBreak - dt);
+      }
+      if (s.intermissionTime <= EPS) this.startNextRound();
       return;
     }
     if (s.phase === "countdown") {
@@ -779,15 +805,31 @@ export class Game {
     const [a, b] = s.fighters;
     const healthA = a.hp / a.character.maxHp;
     const healthB = b.hp / b.character.maxHp;
-    s.winner =
+    s.roundWinner =
       Math.abs(healthA - healthB) <= EPS ? "draw" : healthA > healthB ? 0 : 1;
-    s.phase = "finished";
+    if (s.roundWinner !== "draw") s.roundsWon[s.roundWinner] += 1;
+    const matchDecided =
+      s.roundsWon.some((wins) => wins >= s.roundsToWin) ||
+      s.round >= s.roundsTotal;
+    s.winner = matchDecided
+      ? s.roundsWon[0] === s.roundsWon[1]
+        ? "draw"
+        : s.roundsWon[0] > s.roundsWon[1]
+          ? 0
+          : 1
+      : null;
+    s.phase = matchDecided ? "finished" : "intermission";
+    s.intermissionTime = matchDecided ? 0 : 2.4;
     s.projectiles = [];
     s.hitstop = 0;
+    const poseWinner = matchDecided ? s.winner : s.roundWinner;
     for (const f of s.fighters) {
       f.currentMove = null;
       f.guarding = false;
       f.bufferedMove = null;
+      f.cancelWindow = 0;
+      f.cancelTargets = [];
+      f.confirmedCastId = null;
       f.jumpBuffer = 0;
       f.jumpStartup = 0;
       f.landingTimer = 0;
@@ -799,12 +841,28 @@ export class Game {
       f.crouching = false;
       this.setAction(
         f,
-        s.winner === "draw" ? "idle" : s.winner === f.id ? "victory" : "defeat",
+        poseWinner === "draw"
+          ? "idle"
+          : poseWinner === f.id
+            ? "victory"
+            : "defeat",
       );
     }
-    this.event("end", {
-      winner: s.winner,
-      reason: s.time <= EPS ? "time" : "ko",
-    });
+    if (matchDecided) {
+      this.event("end", {
+        winner: s.winner,
+        roundWinner: s.roundWinner,
+        roundsWon: [...s.roundsWon],
+        round: s.round,
+        reason: s.time <= EPS ? "time" : "ko",
+      });
+    } else {
+      this.event("roundEnd", {
+        winner: s.roundWinner,
+        roundsWon: [...s.roundsWon],
+        round: s.round,
+        reason: s.time <= EPS ? "time" : "ko",
+      });
+    }
   }
 }

@@ -221,6 +221,14 @@ export class GameAudio {
       [523, 659, 784, 1047].forEach((n, i) =>
         this.tone(n, n, 0.3, 0.13, "sine", i * 0.12),
       );
+    } else if (e.type === "roundEnd") {
+      [392, 494, 587].forEach((n, i) =>
+        this.tone(n, n * 1.04, 0.17, 0.07, "sine", i * 0.08),
+      );
+    } else if (e.type === "roundEnd") {
+      [392, 494, 587].forEach((n, i) =>
+        this.tone(n, n * 1.04, 0.17, 0.07, "sine", i * 0.08),
+      );
     } else if (e.type === "countdown" || e.type === "start") {
       this.tone(
         e.type === "start" ? 880 : 440,
