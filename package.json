@@ -15,6 +15,7 @@
     "test:naruto": "node tests/naruto-browser.mjs",
     "test:computer": "node tests/computer-browser.mjs",
     "test:sasuke": "node tests/sasuke-browser.mjs",
+    "test:rigs": "node tests/rig-loading-browser.mjs",
     "test:visual": "node tests/visual-upgrade.mjs",
     "previews": "node scripts/render-previews.mjs",
     "inspect:motion": "node scripts/inspect-motion.mjs",

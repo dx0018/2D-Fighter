@@ -250,7 +250,13 @@ function startFight() {
     ".battle-controls-note > span:nth-child(2)",
   ).textContent = "G / K 随方向变招 · 前／后以敌人位置为准";
   localize(document.querySelector(".battle-main"));
-  input.enabled = true;
+  input.enabled = arena?.modelsReady !== false;
+  const match=game,view=arena;
+  view?.ready?.then(()=>{
+    if(game!==match||arena!==view||page!=="fight")return;
+    input.clear();input.enabled=!paused&&!helpOpen;
+    updateHud();
+  });
   updateHud();
 }
 function rendererWarning(error) {
@@ -339,7 +345,9 @@ function updateHud(dt = 1 / 60) {
   const overlay = hudNode("#battle-overlay");
   if (!paused && s.phase !== "finished") {
     const markup =
-      s.phase === "countdown"
+      arena?.modelsReady === false
+        ? `<div class="countdown"><span>正在准备角色模型</span><b>…</b><small>加载完成后开始倒数</small></div>`
+        : s.phase === "countdown"
         ? `<div class="countdown"><span>准备好了吗？</span><b>${s.countdown > 0.7 ? Math.ceil(s.countdown) : "开战！"}</b><small>${esc(getChars()[0].name)} <i>VS</i> ${esc(getChars()[1].name)}</small></div>`
         : "";
     if (overlay.dataset.phaseMarkup !== markup) {
@@ -618,7 +626,7 @@ function frame(now) {
     if (page === "fight" && game) {
       const controls = input.read();
       if (computer) controls[1] = computer.read(game, dt);
-      game.step(dt, controls);
+      if(arena?.modelsReady!==false)game.step(dt, controls);
       if (game.paused) {
         hudElapsed = 0;
       } else {

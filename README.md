@@ -25,6 +25,7 @@ npm test         # 战斗引擎与透视镜头回归测试
 浏览器端到端检查使用系统 Chromium；先在一个终端运行 `npm run dev`，再在另一个终端运行：
 
 ```bash
+TEST_URL=http://localhost:5173 npm run test:rigs      # 四角色骨架、脚部接地及慢加载无旧模型闪现
 TEST_URL=http://localhost:5173 npm run test:sasuke    # 佐助招式、半须佐骨架、完全体蓄力箭、镜像对战与资源降级
 TEST_URL=http://localhost:5173 npm run test:computer  # 电脑 P2、模式切换、暂停再战与英文窄屏
 TEST_URL=http://localhost:5173 npm run test:e2e
@@ -205,3 +206,5 @@ tests/
 模型参考与性能记录见 [建模、动作与性能](docs/model-motion-performance.md)。开发服务器运行时，可用 `npm run inspect:motion` 生成姿势检查图，`npm run inspect:flow` 生成走路与普攻预览视频（需 FFmpeg），`npm run profile` 输出软件渲染对比数据；这类采样用于同环境比较，不代表设备实际帧率。截图、视频和采样文件均放在忽略追踪的 `artifacts/`。
 
 当前游戏性检查与后续优先级见 [对战体验检查](docs/gameplay-review.md)。
+
+正式模型加载完成前隐藏所有角色并显示准备状态，对战倒数和输入等待模型就绪。内置旧模型仅作为资源失败时的兼容后备，不再用于入场占位。四名角色均验证蒙皮骨架；走路、跳跃、蹲下通过骨骼与双骨 IK 完成，不再整体压缩模型。

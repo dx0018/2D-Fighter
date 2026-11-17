@@ -16,7 +16,7 @@ export function animateSasuke(m,f,dt,clock,opponent=null) {
   m.root.position.set(f.x,Math.max(0,f.y),0);
   m.visual.rotation.y=THREE.MathUtils.damp(m.visual.rotation.y,face*.95,18,dt);
   const hips=m.bones.Hips;
-  hips.position.y-=m.sasukeCrouch*.42+m.sasukeDefeat*.35;
+  hips.position.y-=m.sasukeCrouch*.42+m.sasukeDefeat*.35+Math.min(.08,(f.landingTimer||0)*.5)*(f.landingImpact||0);
   const phase=(f.walkDistance||0)*Math.PI*2/2.6;
   m.bones.Chest.rotation.x+=Math.sin(clock*2.5)*.008+(visual==='chidori'?-.15:0)+m.sasukeDefeat*.3;
   m.root.updateMatrixWorld(true);

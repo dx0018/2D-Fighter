@@ -1,5 +1,7 @@
 // Chinese source copy is the lookup key. Add translations here when adding content.
 export const english = {
+  正在准备角色模型: "Preparing fighters",
+  加载完成后开始倒数: "The countdown begins when loading is complete",
   "宇智波佐助": "Sasuke Uchiha",
   "以雷火破局，以须佐制胜": "Strike with lightning and fire. Finish with Susanoo.",
   "草薙斩": "Kusanagi Slash",

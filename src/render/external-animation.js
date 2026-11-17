@@ -1,3 +1,5 @@
+import { poseLocomotion } from "./skeletal-locomotion.js";
+import { recoveryMovement } from "../game/moves.js";
 import { updateKuramaSummon } from "./kurama-summon.js";
 import * as THREE from "three";
 import { clamp, damp } from "./primitives.js";
@@ -99,7 +101,7 @@ function aimArm(m, upper, lower, hand, target, bendSide = 1) {
 
 function doraPose(m, f, dt, clock, walking, crouch, airborne, cast, hurt) {
   const rig = m.bones,
-    squat = 0,
+    squat = m.crouchBlend || 0,
     stride = m.walkCycle || 0;
   m.crouch = crouch ? 1 : 0;
   m.walkCycle = stride + dt * (walking ? 8 + Math.abs(f.vx) * 0.55 : 0);
@@ -359,7 +361,7 @@ function updateDetails(m, f, dt, clock) {
 export function animateExternal(m, f, dt, clock, hitstop = 0) {
   const face = f.facing ?? 1,
     airborne = !f.grounded,
-    walking = !airborne && !f.crouching && (f.action === "walk" || !!f.currentMove?.move.recoveryMovement),
+    walking = !airborne && !f.crouching && (f.action === "walk" || recoveryMovement(f.currentMove)),
     crouch = !!f.crouching,
     hurt = f.action === "hurt" || f.stun > 0,
     victory = f.action === "victory",
@@ -403,16 +405,10 @@ export function animateExternal(m, f, dt, clock, hitstop = 0) {
   m.root.position.set(f.x, Math.max(0, f.y), 0);
   m.root.updateMatrixWorld(true);
   m.forward.set(0, 0, m.frontAxis).applyQuaternion(m.visual.quaternion).normalize();
-  const squatScale = damp(m.visual.scale.y, 1 - m.crouchBlend * 0.14, 18, dt),
-    widthScale = 1 + (1 - squatScale) * 0.32;
-  m.visual.scale.set(widthScale, squatScale, widthScale);
+  m.visual.scale.setScalar(1);
+  poseLocomotion(m,f,dt,walking);
   poseAim(m, f, f.currentMove, walking);
   animateKurama(m, f, f.currentMove, clock);
   updateDetails(m, f, dt, clock);
-  if (m.character.model.rig === "doraemon") {
-    const moving = Math.abs(f.vx) > 0.15;
-    const s = m.root.scale;
-    s.y = damp(s.y, airborne ? (f.vy > 0 ? 1.04 : 0.96) : moving ? 1 + Math.sin(clock * 12) * 0.012 : 1, 12, dt);
-    s.x = s.z = 1 + (1 - s.y) * 0.55;
-  }
+  m.root.scale.setScalar(1);
 }

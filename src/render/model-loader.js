@@ -9,6 +9,8 @@ import { captureBones } from "./articulated-pose.js";
 import { bindSusanooBow } from "./susanoo-archery.js";
 import { makeSasukeEffects } from "./sasuke-effects.js";
 
+import { prepareLocomotion } from "./skeletal-locomotion.js";
+
 const cache = new Map();
 const assetBase = import.meta.env?.BASE_URL || "/";
 const load = (url) => {
@@ -417,6 +419,9 @@ export async function loadFighterModel(character) {
     for (const key of Object.keys(m.clips))
       if (!m.actions.has(m.clips[key])) delete m.clips[key];
   }
+  let skinned=0;m.model.traverse(node=>{if(node.isSkinnedMesh&&node.skeleton?.bones.length)skinned++;});
+  if(!skinned)throw new Error(`Unrigged fighter: ${character.id}`);
+  if(character.model.rig!=="sasuke")prepareLocomotion(m);
   return m;
 }
 

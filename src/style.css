@@ -2871,3 +2871,13 @@ kbd {
 @media (max-width: 600px) {
   .opponent-choice span { flex-basis: 100%; }
 }
+.model-loading {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  color: #e5efd5;
+  background: #10231b55;
+  font-size: 13px;
+  pointer-events: none;
+}

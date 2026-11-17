@@ -95,8 +95,17 @@ export class ArenaRenderer {
         map,
       );
       this.applyQuality();
+      this.modelsReady = false;
+      this.container.setAttribute("aria-busy","true");
+      if(this.container.id==="home-arena"){
+        this.loadingLabel=document.createElement("span");
+        this.loadingLabel.className="model-loading";
+        this.loadingLabel.textContent="正在准备角色模型";
+        this.container.append(this.loadingLabel);localize(this.loadingLabel);
+      }
       this.fighters = characters.map((c) => {
         const f = makeFighter(c);
+        f.root.visible=false;
         this.scene.add(f.root);
         return f;
       });
@@ -115,6 +124,7 @@ export class ArenaRenderer {
             previous.skeleton?.dispose();
             previous.root.traverse((node) => node.skeleton?.dispose());
             disposeTree(previous.root);
+            loaded.root.visible=false;
             this.fighters[index] = loaded;
             this.scene.add(loaded.root);
             this.needsRender = true;
@@ -122,9 +132,18 @@ export class ArenaRenderer {
             console.warn(`Using the built-in ${character.id} model:`, error);
           }
         }),
-      );
+      ).then(()=>{
+        if(this.disposed)return;
+        this.modelsReady=true;
+        this.loadingLabel?.remove();
+        this.container.setAttribute("aria-busy","false");
+        for(const f of this.fighters)f.root.visible=true;
+        for(const s of this.shadows)s.visible=true;
+        this.needsRender=true;
+      });
       this.shadows = characters.map(() => {
         const s = softShadow();
+        s.visible=false;
         this.scene.add(s);
         return s;
       });
@@ -138,6 +157,9 @@ export class ArenaRenderer {
       this.renderer?.dispose();
       this.canvas?.remove();
       this.fallback = true;
+      this.modelsReady = true;
+      this.loadingLabel?.remove();
+      this.container.setAttribute("aria-busy","false");
       this.canvas = document.createElement("canvas");
       container.append(this.canvas);
       this.ctx = this.canvas.getContext("2d");
@@ -188,7 +210,7 @@ export class ArenaRenderer {
   }
   update(state, dt = 1 / 60) {
     if (this.disposed || !state) return;
-    this.clock += dt;
+    if(this.modelsReady!==false)this.clock += dt;
     if (this.fallback) {
       drawFallback.call(this, state);
       return;
@@ -252,5 +274,6 @@ export class ArenaRenderer {
     this.renderer?.dispose();
     this.renderer?.forceContextLoss();
     this.canvas?.remove();
+    this.loadingLabel?.remove();
   }
 }
