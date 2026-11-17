@@ -32,7 +32,7 @@ export const sasuke = {
       },
     },
     ultimate:{name:"完全体须佐·天之矢",description:"完全体须佐在身后显形、抬弓蓄力后射出穿空之箭；蓄力可被打断。",
-      kind:"projectile",animation:"susanoo-arrow",visual:"susanoo-arrow",damage:39,range:32,
+      kind:"projectile",animation:"susanoo-arrow",visual:"susanoo-arrow",aim:"susanoo-bow",damage:39,range:32,
       cooldown:11,cost:70,windup:1.2,active:.12,recovery:.5,height:3.05,originX:1.5,radius:.45,angle:-.12,
       projectileSpeed:25,knockback:10,stun:.65,impact:{stop:.1,shake:.8},color:"#bb8bff"},
   },

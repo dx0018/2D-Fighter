@@ -1,3 +1,4 @@
+import { SUSANOO_ARCHERY } from "../game/susanoo-archery.js";
 import { makeSasukeProjectile } from "./sasuke-effects.js";
 import * as THREE from "three";
 import { clamp } from "./primitives.js";
@@ -469,7 +470,13 @@ export class CombatEffects {
       const p = state.projectiles[i];
       d.group.visible = !!p;
       if (!p) return;
-      d.group.position.set(p.x, p.y, 0);
+      d.group.position.set(p.x, p.y, p.z || 0);
+      if (p.move?.visual === "susanoo-arrow") {
+        d.aimDirection ||= new THREE.Vector3();
+        d.aimAxis ||= new THREE.Vector3(1, 0, 0);
+        d.aimDirection.set(p.vx, p.vy, p.vz || 0).normalize();
+        d.group.quaternion.setFromUnitVectors(d.aimAxis, d.aimDirection);
+      } else
       d.group.rotation.set(0, 0, Math.atan2(p.vy || 0, p.vx ?? p.direction));
       const special = ["bijuu", "kunai", "fireball", "susanoo-arrow"].includes(p.move?.visual)
         ? p.move.visual
@@ -490,7 +497,8 @@ export class CombatEffects {
         object.visible = special === kind;
       if (special) {
         const object = d.specials.get(special);
-        if (special === "bijuu") spinChakraOrb(object, clock, p.radius);
+        if (special === "susanoo-arrow") object.scale.setScalar(SUSANOO_ARCHERY.arrowScale);
+        else if (special === "bijuu") spinChakraOrb(object, clock, p.radius);
         else if (special === "fireball") {
           object.scale.setScalar(p.radius / .5);
           object.rotation.x = clock * 7;

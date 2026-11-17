@@ -29,13 +29,13 @@ function poseLeg(m, leg, target) {
   poseChain(leg, origin, m.target, m.pole);
   leg.foot.position.copy(leg.endpoint);
 }
-export function animateFighter(m, f, dt, clock, index = 0, hitstop = 0) {
+export function animateFighter(m, f, dt, clock, index = 0, hitstop = 0, opponent = null) {
   if (!m) return;
   if (m.external) {
     const contactFrame = hitstop > 0 && !m.frozen;
     m.frozen = hitstop > 0;
     if (hitstop > 0) dt = contactFrame ? Math.max(dt, 1 / 30) : 0;
-    if (m.type === "sasuke") animateSasuke(m, f, dt, clock);
+    if (m.type === "sasuke") animateSasuke(m, f, dt, clock, opponent);
     else animateExternal(m, f, dt, clock, hitstop);
     return;
   }

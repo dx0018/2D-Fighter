@@ -9,8 +9,9 @@ Both contain sculptor-v2.obj, sculptor-v2.mtl, and Image_0.png.
 Changes: normalized proportions (Sasuke 3.1 units, Susanoo 6.2 units), added
 articulated skeletons and skin weights, smoothed normals, adjusted materials,
 compressed textures to 1024x1024 JPEG, exported browser-ready GLBs, and added
-procedural combat poses. Converter: scripts/assets/import-sasuke.py.
+procedural combat poses. The bow is rigidly bound with authored tip sockets;
+the baked arrow/resting string are replaced by synchronized game effects. Converter: scripts/assets/import-sasuke.py.
 
 The partial skeletal Susanoo (ribs, skull, articulated arms, chakra blade)
-is original game geometry, defined in src/render/sasuke-effects.js.
+is original game geometry, defined in src/render/susanoo-skeleton.js.
 No third-party open-content license is asserted for the user-supplied models.

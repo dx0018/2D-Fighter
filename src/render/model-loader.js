@@ -6,6 +6,7 @@ import { makeChakraOrb, makeKuramaAura, setBijuuModel, attachBijuuModel } from "
 import { makeKuramaSummon } from "./kurama-summon.js";
 
 import { captureBones } from "./articulated-pose.js";
+import { bindSusanooBow } from "./susanoo-archery.js";
 import { makeSasukeEffects } from "./sasuke-effects.js";
 
 const cache = new Map();
@@ -201,11 +202,12 @@ export async function loadFighterModel(character) {
   if (character.model.rig === "sasuke") {
     m.bones = captureBones(actor);
     m.sasukeFx = makeSasukeEffects();
-    m.root.add(m.sasukeFx.skeleton.root, m.sasukeFx.sword, m.sasukeFx.slash, m.sasukeFx.lightning, m.sasukeFx.charge, m.sasukeFx.string);
+    m.root.add(m.sasukeFx.skeleton.root, m.sasukeFx.sword, m.sasukeFx.slash, m.sasukeFx.lightning, m.sasukeFx.charge, m.sasukeFx.string, m.sasukeFx.bow);
     try {
       const full = await load(`${assetBase}models/susanoo.glb`);
       m.fullSusanoo = cloneSkeleton(full.scene);
       m.fullBones = captureBones(m.fullSusanoo);
+      m.fullBow = bindSusanooBow(m.fullSusanoo, m.fullBones);
       m.fullMaterials = [];
       m.fullSusanoo.traverse(node => {
         if (!node.isMesh) return;

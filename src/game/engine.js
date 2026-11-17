@@ -1,4 +1,5 @@
 /** Deterministic combat core. No DOM, timers or renderer dependency. */
+import { susanooArchery } from "./susanoo-archery.js";
 import { moveContext, selectMove, recoveryMovement } from "./moves.js";
 import { segmentHitsBox, fighterHeight } from "./collision.js";
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
@@ -397,7 +398,7 @@ export class Game {
           : f.crouching
             ? 0.55
             : (move.hitY ?? 1.4);
-    if (!move.visual || !["rasengan", "bijuu"].includes(move.visual))
+    if (!move.visual || !["rasengan", "bijuu", "susanoo-arrow"].includes(move.visual))
       this.effect("cast", f.x, f.y + chargeHeight, move.color, move.windup, {
         owner: f.id,
         kind: move.kind,
@@ -423,6 +424,9 @@ export class Game {
         direction: cast.facing,
       });
     if (move.kind === "projectile") {
+      const aimed = move.aim === "susanoo-bow"
+        ? susanooArchery(f, this.state.fighters[1 - f.id], move) : null;
+      if (aimed) cast.archery = aimed;
       this.state.projectiles.push({
         id: this.nextId++,
         x: f.x + cast.facing * (move.originX ?? 1),
@@ -439,6 +443,11 @@ export class Game {
         move,
         hit: new Set(),
         alive: true,
+        ...(aimed ? {
+          ...aimed.origin, vx: aimed.vx, vy: aimed.vy, vz: aimed.vz,
+          direction: aimed.facing,
+          angle: Math.atan2(aimed.vy, aimed.vx),
+        } : {}),
       });
     } else if (move.kind === "beam") {
       cast.ray = {
@@ -540,6 +549,7 @@ export class Game {
         oldY = p.y;
       p.x += p.vx * dt;
       p.y += p.vy * dt;
+      if (p.vz != null) p.z += p.vz * dt;
       p.distance += p.speed * dt;
       const overlaps = (x, width, y, height) =>
         segmentHitsBox(oldX, oldY, p.x, p.y, p.radius, x, width, y, height);

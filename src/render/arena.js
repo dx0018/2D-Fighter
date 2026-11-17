@@ -214,7 +214,7 @@ export class ArenaRenderer {
     this.sun.shadow.camera.bottom = -15;
     this.sun.shadow.camera.updateProjectionMatrix();
     state.fighters.forEach((f, i) => {
-      animateFighter(this.fighters[i], f, dt, this.clock, i, state.hitstop);
+      animateFighter(this.fighters[i], f, dt, this.clock, i, state.hitstop, state.fighters[1 - i]);
       const s = this.shadows[i];
       s.position.x = f.x;
       const size = 1 + f.y * 0.09;

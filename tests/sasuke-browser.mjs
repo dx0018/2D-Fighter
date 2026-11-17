@@ -35,7 +35,22 @@ try{
    if(key){g.beginMove(f,key,context);for(let t=0;t<elapsed;t+=1/120)g.step(1/120);}
    g.paused=true;const draw=a.renderer.render;a.renderer.render=()=>{};for(let i=0;i<40;i++)a.update(g.state,1/60);a.renderer.render=draw;a.update(g.state,0);
    const T=await import('/node_modules/three/build/three.module.js');const m=a.fighters[0];
-   return {feet:new T.Box3().setFromObject(m.model,true).min.y,half:m.sasukeFx.skeleton.root.visible,full:m.fullSusanoo?.visible,charge:m.sasukeFx.charge.visible,lightning:m.sasukeFx.lightning.visible,projectiles:g.state.projectiles.map(p=>p.move.visual),calls:a.renderer.info.render.calls,headY:m.bones.Head.getWorldPosition(new T.Vector3()).y,bones:Object.keys(m.bones).length,triangles:a.renderer.info.render.triangles};
+   let alignment=null;
+   if(m.sasukeFx.archery&&m.sasukeFx.charge.visible){
+     const fx=m.sasukeFx,frame=fx.archery.shot;
+     const grip=fx.bow.getWorldPosition(new T.Vector3());
+     const verts=fx.string.geometry.attributes.position;
+     const nock=m.root.localToWorld(new T.Vector3().fromBufferAttribute(verts,1));
+     const shaftNock=fx.charge.localToWorld(new T.Vector3(-2.85,0,0));
+     const forward=new T.Vector3(1,0,0).applyQuaternion(fx.charge.getWorldQuaternion(new T.Quaternion()));
+     const aim=new T.Vector3(frame.target.x,frame.target.y,0).sub(grip).normalize();
+     const top=m.fullBow?.top.getWorldPosition(new T.Vector3());
+     const bottom=m.fullBow?.bottom.getWorldPosition(new T.Vector3());
+     const lineTop=m.root.localToWorld(new T.Vector3().fromBufferAttribute(verts,0));
+     const lineBottom=m.root.localToWorld(new T.Vector3().fromBufferAttribute(verts,2));
+     alignment={bowRigid:!!m.fullBow,stringTipError:top?Math.max(top.distanceTo(lineTop),bottom.distanceTo(lineBottom)):Infinity,gripError:grip.distanceTo(m.fullBones.Hand_L.getWorldPosition(new T.Vector3())),drawError:nock.distanceTo(m.fullBones.Hand_R.getWorldPosition(new T.Vector3())),nockError:nock.distanceTo(shaftNock),aimDot:aim.dot(forward),root:m.fullSusanoo.getWorldPosition(new T.Vector3()).toArray(),scale:fx.charge.scale.toArray()};
+   }
+   return {alignment,feet:new T.Box3().setFromObject(m.model,true).min.y,half:m.sasukeFx.skeleton.root.visible,full:m.fullSusanoo?.visible,charge:m.sasukeFx.charge.visible,lightning:m.sasukeFx.lightning.visible,projectiles:g.state.projectiles.map(p=>p.move.visual),calls:a.renderer.info.render.calls,headY:m.bones.Head.getWorldPosition(new T.Vector3()).y,bones:Object.keys(m.bones).length,triangles:a.renderer.info.render.triangles};
   },{key,context,elapsed,facing});
   await page.locator('#battle-shell').screenshot({path:`artifacts/sasuke/${name}.png`});return info;
  };
@@ -47,7 +62,18 @@ try{
  const chidori=await snap('chidori','skill','forward',.25);assert.equal(chidori.lightning,true);
  const fire=await snap('fireball','skill','backward',.42);assert.ok(fire.projectiles.includes('fireball'));
  const full=await snap('perfect-susanoo-charge','ultimate','neutral',.9);assert.equal(full.full,true);assert.equal(full.charge,true);assert.equal(full.half,false);assert.ok(!full.projectiles.includes('susanoo-arrow'));
- const mirrored=await snap('perfect-susanoo-mirrored','ultimate','neutral',.9,-1);assert.equal(mirrored.full,true);assert.equal(mirrored.charge,true);
+ const checkAim=info=>{
+   assert.equal(info.alignment.bowRigid,true);
+   assert.ok(info.alignment.stringTipError<.001);
+   assert.ok(info.alignment.gripError<.03,JSON.stringify(info.alignment));
+   assert.ok(info.alignment.drawError<.04,JSON.stringify(info.alignment));
+   assert.ok(info.alignment.nockError<.001,JSON.stringify(info.alignment));
+   assert.ok(info.alignment.aimDot>.9999,JSON.stringify(info.alignment));
+   assert.ok(info.alignment.root[2]<-1);
+   assert.deepEqual(info.alignment.scale,[.65,.65,.65]);
+ };
+ checkAim(full);
+ const mirrored=await snap('perfect-susanoo-mirrored' ,'ultimate','neutral',.9,-1);assert.equal(mirrored.full,true);assert.equal(mirrored.charge,true);checkAim(mirrored);
  const shot=await snap('heavenly-arrow','ultimate','neutral',1.28);assert.ok(shot.projectiles.includes('susanoo-arrow'));assert.equal(shot.charge,false);
  const stopped=await snap('cancelled',null,'neutral',0);assert.equal(stopped.half,false);assert.equal(stopped.full,false);assert.equal(stopped.charge,false);
  // Normal keyboard attack, KO, and rematch work with the new character.

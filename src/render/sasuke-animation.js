@@ -1,11 +1,11 @@
+import { poseSusanooArchery } from "./susanoo-archery.js";
 import * as THREE from "three";
 import { aimChain, resetBones } from "./articulated-pose.js";
 import { recoveryMovement } from "../game/moves.js";
-const clamp=THREE.MathUtils.clamp;
 const smooth=(a,b,t)=>THREE.MathUtils.smoothstep(t,a,b);
 const pos=new THREE.Vector3();
 
-export function animateSasuke(m,f,dt,clock) {
+export function animateSasuke(m,f,dt,clock,opponent=null) {
   const face=f.facing||1, cast=f.currentMove, move=cast?.move, elapsed=cast?.elapsed||0;
   const visual=move?.visual, windup=move?.windup||1, active=move?.active||.1;
   const walking=f.grounded&&!f.crouching&&(f.action==='walk'||recoveryMovement(cast));
@@ -71,35 +71,12 @@ export function animateSasuke(m,f,dt,clock) {
     fx.lightning.position.copy(pos);fx.lightning.rotation.set(clock*8,clock*11,0);
   }
   const full=visual==='susanoo-arrow';
-  const fullRoot=m.fullSusanoo||fx.skeleton.root;
   if(!summon)fx.skeleton.root.visible=full&&!m.fullSusanoo;
   if(m.fullSusanoo)m.fullSusanoo.visible=full;
   fx.charge.visible=full&&elapsed<windup;
   fx.string.visible=full&&!!m.fullSusanoo&&elapsed<windup;
-  if(full){
-    fullRoot.position.set(-face*.65,.015-Math.max(0,f.y),-1.35);
-    fullRoot.rotation.set(0,face*Math.PI/2,0);
-    for(const mat of m.fullMaterials||[]){mat.opacity=.8*smooth(0,.22,elapsed)*fade;}
-    if(!m.fullSusanoo)for(const mat of fx.skeleton.materials){
-      mat.userData.baseOpacity??=mat.opacity;
-      mat.opacity=mat.userData.baseOpacity*smooth(0,.22,elapsed)*fade;
-    }
-    if(m.fullBones){
-      resetBones(m.fullBones);
-      const draw=smooth(.15,windup,elapsed);
-      aimChain(m,fullRoot,m.fullBones,['UpperArm_L','Forearm_L','Hand_L'],[.65,3.25,1.3],[1,0,.5]);
-      aimChain(m,fullRoot,m.fullBones,['UpperArm_R','Forearm_R','Hand_R'],[-.35,3.25,.9-draw*.65],[-1,0,.5]);
-      // A taut, drawn energy string makes the charging phase readable.
-      const vertices=fx.string.geometry.attributes.position;
-      for(const [i,p] of [[0,[.65,4.75,1.3]],[1,[-.35,3.25,.9-draw*.65]],[2,[.65,1.75,1.3]]]){
-        pos.set(...p);fullRoot.localToWorld(pos);m.root.worldToLocal(pos);vertices.setXYZ(i,pos.x,pos.y,pos.z);
-      }
-      vertices.needsUpdate=true;
-    }
-    fx.charge.position.set(face*1.3,3.05,.05);
-    fx.charge.rotation.set(0,0,face>0?-.12:Math.PI+.12);
-    fx.charge.scale.setScalar(.25+.6*smooth(.1,windup,elapsed));
-  }
+  fx.bow.visible=false;
+  if(full) poseSusanooArchery(m,f,cast,opponent,fade);
   const hurt=Math.min(1,(f.flash||0)*5);
   for(const mat of m.materials){if(mat.emissive){mat.emissive.set(hurt?'#ff876e':'#000000');mat.emissiveIntensity=hurt*.7;}}
 }
