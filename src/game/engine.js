@@ -47,6 +47,9 @@ export class Game {
         combo: 0,
         comboDamage: 0,
         comboWindow: 0,
+        cancelWindow: 0,
+        cancelTargets: [],
+        confirmedCastId: null,
         hitDirection: 0,
         inputContext: "neutral",
         moveDirection: 0,
@@ -196,6 +199,7 @@ export class Game {
       }
       f.jumpBuffer = Math.max(0, f.jumpBuffer - dt);
       f.comboWindow = Math.max(0, f.comboWindow - dt);
+      f.cancelWindow = Math.max(0, f.cancelWindow - dt);
       if (f.comboWindow <= 0) {
         f.combo = 0;
         f.comboDamage = 0;
@@ -210,6 +214,28 @@ export class Game {
       for (const key of ["attack", "skill", "ultimate"])
         f.cooldowns[key] = Math.max(0, f.cooldowns[key] - dt);
       const other = s.fighters[1 - id];
+      const buffered = f.bufferedMove;
+      const canHitCancel =
+        f.currentMove &&
+        f.currentMove.id === f.confirmedCastId &&
+        f.cancelWindow > 0 &&
+        buffered &&
+        f.cancelTargets.includes(buffered.key) &&
+        f.cooldowns[buffered.key] <= EPS &&
+        f.energy >= selectMove(f.character, buffered.key, buffered.context).cost &&
+        (buffered.key === "ultimate" ||
+          (buffered.context === "air") === !f.grounded);
+      if (canHitCancel) {
+        f.bufferedMove = null;
+        this.beginMove(f, buffered.key, buffered.context, buffered.facing);
+        if (buffered.key === "ultimate") {
+          const move = f.currentMove.move;
+          other.stun = Math.max(
+            other.stun,
+            move.windup + move.active + 0.12,
+          );
+        }
+      }
       if (!f.currentMove && !f.stun && Math.abs(other.x - f.x) > 0.1)
         f.facing = other.x >= f.x ? 1 : -1;
       if (!f.currentMove && f.stun <= EPS) {
@@ -289,6 +315,11 @@ export class Game {
         )
           strikes.push({ attacker: f, cast });
         if (cast.elapsed >= move.windup + move.active + move.recovery) {
+          if (f.confirmedCastId === cast.id) {
+            f.cancelWindow = 0;
+            f.cancelTargets = [];
+            f.confirmedCastId = null;
+          }
           f.currentMove = null;
           f.moveProgress = 0;
           if (f.grounded && !f.crouching && recoveryMovement(cast))
@@ -346,6 +377,9 @@ export class Game {
             f.currentMove.cancelled = true;
             f.currentMove = null;
             f.moveProgress = 0;
+            f.cancelWindow = 0;
+            f.cancelTargets = [];
+            f.confirmedCastId = null;
           }
           this.effect("dust", f.x, 0.1, "#e5d8c4", 0.3);
         }
@@ -386,6 +420,9 @@ export class Game {
       released: false,
       hit: new Set(),
     };
+    f.cancelWindow = 0;
+    f.cancelTargets = [];
+    f.confirmedCastId = null;
     this.setAction(f, key);
     f.actionTime = 0;
     this.event("cast", {
@@ -450,6 +487,7 @@ export class Game {
         angle: move.angle || 0,
         distance: 0,
         move,
+        castId: cast.id,
         hit: new Set(),
         alive: true,
         ...(aimed ? {
@@ -539,6 +577,7 @@ export class Game {
         attacker: f,
         target,
         move,
+        castId: cast.id,
         direction: radial
           ? Math.sign(target.x - f.x) || cast.facing
           : cast.facing,
@@ -548,7 +587,7 @@ export class Game {
       if (object.destroyed || cast.hit.has(object.id)) continue;
       if (overlaps(object.x, object.width, 0, object.height)) {
         cast.hit.add(object.id);
-        contacts.push({ attacker: f, object, move, direction: cast.facing });
+        contacts.push({ attacker: f, object, move, castId: cast.id, direction: cast.facing });
       }
     }
   }
@@ -572,6 +611,7 @@ export class Game {
             attacker: this.state.fighters[p.owner],
             target,
             move: p.move,
+            castId: p.castId,
             direction: p.direction,
           });
       }
@@ -587,6 +627,7 @@ export class Game {
             attacker: this.state.fighters[p.owner],
             object,
             move: p.move,
+            castId: p.castId,
             direction: p.direction,
           });
         }
@@ -601,7 +642,7 @@ export class Game {
     }
     this.state.projectiles = this.state.projectiles.filter((p) => p.alive);
   }
-  applyContact({ attacker, target, object, move, direction }) {
+  applyContact({ attacker, target, object, move, castId, direction }) {
     if (object) {
       object.flash = 0.18;
       object.shake = 1;
@@ -657,6 +698,15 @@ export class Game {
     attacker.combo += 1;
     attacker.comboDamage += move.damage;
     attacker.comboWindow = 1.35;
+    if (
+      attacker.currentMove?.id === castId &&
+      Array.isArray(move.cancelOnHit) &&
+      move.cancelOnHit.length
+    ) {
+      attacker.confirmedCastId = castId;
+      attacker.cancelTargets = move.cancelOnHit;
+      attacker.cancelWindow = move.cancelWindow ?? 0.32;
+    }
     target.hitDirection = direction;
     target.hitLevel = (move.hitY ?? 1.35) < 0.9 ? "low" : "mid";
     this.state.hitstop = Math.max(
@@ -670,6 +720,9 @@ export class Game {
     target.vx = direction * move.knockback;
     target.currentMove = null;
     target.moveProgress = 0;
+    target.cancelWindow = 0;
+    target.cancelTargets = [];
+    target.confirmedCastId = null;
     target.crouching = false;
     target.jumpStartup = 0;
     this.setAction(target, "hurt");

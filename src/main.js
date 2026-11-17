@@ -236,7 +236,7 @@ function startFight() {
   game = new Game({ characters: cs, map, onEvent: matchEvent });
   computer = opponent === "computer" ? new ComputerPlayer() : null;
   renderPage(
-    `${header()}<main class="battle-main"><div class="battle-heading"><span><i></i> LIVE MATCH <b>${esc(map.name)}</b></span><div><button class="text-button" data-action="help">? 操作</button><button class="text-button" data-action="fullscreen">⛶ 全屏</button><button class="button compact" data-action="pause">Ⅱ 暂停 <kbd>ESC</kbd></button></div></div><section class="battle-shell" id="battle-shell" aria-label="双人格斗场"><div id="battle-arena" class="battle-arena"></div><div class="battle-hud">${hudPlayer(cs[0], 0)}<div class="round-timer"><small>ROUND 01</small><b id="timer">99</b><span>ONE GOOD FIGHT</span></div>${hudPlayer(cs[1], 1)}</div><div id="impact-vignette" class="impact-vignette"></div><div class="combat-callouts">${[0, 1].map((p) => `<div id="super-${p}" class="super-callout super-p${p + 1}"><small>PLAYER 0${p + 1} · ULTIMATE</small><b></b></div><div id="combo-${p}" class="combo-callout combo-p${p + 1}"><b></b><small></small></div>`).join("")}</div><div class="battle-overlay" id="battle-overlay" aria-live="polite"></div><div class="arena-location"><span>STAGE 0${selectedMap + 1}</span><b>${esc(map.englishName)}</b></div><div id="feedback" class="battle-feedback" aria-live="polite"></div></section><div class="battle-bottom">${skillTray(cs[0], 0)}<span class="battle-center-label">POCKET<br><b>CLASH.</b></span>${skillTray(cs[1], 1)}</div><div class="battle-controls-note"><span><b class="p1">P1</b> WASD 移动 / 跳跃 / 蹲下</span><span>靠近对手出招 · 命中回复能量 · 大招消耗 70 EP</span><span><b class="p2">P2</b> ${opponent === "computer" ? "电脑自动操作" : "方向键 移动 / 跳跃 / 蹲下"}</span></div><div class="arena-rules"><span>后退防守 · 低段需蹲下防守 · 防御消耗能量</span><b id="supply-status" aria-live="polite"></b></div><details class="touch-controls"><summary>屏幕操作面板 <span>适合触屏体验；双人推荐键盘</span></summary>${touchPad(0)}${touchPad(1)}</details></main>${footer()}`,
+    `${header()}<main class="battle-main"><div class="battle-heading"><span><i></i> LIVE MATCH <b>${esc(map.name)}</b></span><div><button class="text-button" data-action="help">? 操作</button><button class="text-button" data-action="fullscreen">⛶ 全屏</button><button class="button compact" data-action="pause">Ⅱ 暂停 <kbd>ESC</kbd></button></div></div><section class="battle-shell" id="battle-shell" aria-label="双人格斗场"><div id="battle-arena" class="battle-arena"></div><div class="battle-hud">${hudPlayer(cs[0], 0)}<div class="round-timer"><small>ROUND 01</small><b id="timer">99</b><span>ONE GOOD FIGHT</span></div>${hudPlayer(cs[1], 1)}</div><div id="impact-vignette" class="impact-vignette"></div><div class="combat-callouts">${[0, 1].map((p) => `<div id="super-${p}" class="super-callout super-p${p + 1}"><small>PLAYER 0${p + 1} · ULTIMATE</small><b></b></div><div id="combo-${p}" class="combo-callout combo-p${p + 1}"><b></b><small></small><em></em></div>`).join("")}</div><div class="battle-overlay" id="battle-overlay" aria-live="polite"></div><div class="arena-location"><span>STAGE 0${selectedMap + 1}</span><b>${esc(map.englishName)}</b></div><div id="feedback" class="battle-feedback" aria-live="polite"></div></section><div class="battle-bottom">${skillTray(cs[0], 0)}<span class="battle-center-label">POCKET<br><b>CLASH.</b></span>${skillTray(cs[1], 1)}</div><div class="battle-controls-note"><span><b class="p1">P1</b> WASD 移动 / 跳跃 / 蹲下</span><span>命中确认后可接招 · 命中回复能量 · 大招消耗 70 EP</span><span><b class="p2">P2</b> ${opponent === "computer" ? "电脑自动操作" : "方向键 移动 / 跳跃 / 蹲下"}</span></div><div class="arena-rules"><span>后退防守 · 低段需蹲下防守 · 防御消耗能量</span><b id="supply-status" aria-live="polite"></b></div><details class="touch-controls"><summary>屏幕操作面板 <span>适合触屏体验；双人推荐键盘</span></summary>${touchPad(0)}${touchPad(1)}</details></main>${footer()}`,
   );
   try {
     arena = new ArenaRenderer(document.querySelector("#battle-arena"), {
@@ -253,7 +253,7 @@ function startFight() {
     .insertAdjacentHTML("beforebegin", skillGuide(cs));
   document.querySelector(
     ".battle-controls-note > span:nth-child(2)",
-  ).textContent = "G / K 随方向变招 · 前／后以敌人位置为准";
+    ).textContent = "普攻命中后及时按 G / K 接技能；按 H / L 接大招 · 前／后以敌人位置为准";
   localize(document.querySelector(".battle-main"));
   input.enabled = arena?.modelsReady !== false;
   const match=game,view=arena;
@@ -295,11 +295,25 @@ function updateHud(dt = 1 / 60) {
     if (showSuper) hudText(`#super-${p} b`, cast.move.name);
     hudNode(`#combo-${p}`).classList.toggle(
       "active",
-      f.combo >= 2 && f.comboWindow > 0,
+      (f.cancelWindow > 0 && f.cancelTargets.length > 0) ||
+        (f.combo >= 2 && f.comboWindow > 0),
     );
-    if (f.combo >= 2) {
+    hudNode(`#combo-${p}`).classList.toggle("confirmable", f.cancelWindow > 0);
+    if (f.cancelWindow > 0 && f.cancelTargets.length) {
+      hudText(`#combo-${p} b`, f.combo >= 2 ? `${f.combo} HITS` : "命中确认");
+      hudText(`#combo-${p} small`, `${f.comboDamage} 伤害`);
+      hudText(
+        `#combo-${p} em`,
+        f.cancelTargets.includes("skill") ? "可接技能／大招" : "可接大招",
+      );
+    } else if (f.combo >= 2 && f.comboWindow > 0) {
       hudText(`#combo-${p} b`, `${f.combo} HITS`);
       hudText(`#combo-${p} small`, `${f.comboDamage} 伤害`);
+      hudText(`#combo-${p} em`, "");
+    } else {
+      hudText(`#combo-${p} b`, "");
+      hudText(`#combo-${p} small`, "");
+      hudText(`#combo-${p} em`, "");
     }
     hudText(`#guard-state-${p}`, f.guardBreak>0 ? "防御崩解" : f.guardFlash>0 ? "成功防守" : f.guarding ? (f.guardLow?"下段防守":"后退防守") : "");
     hudStyle(`#hp-${p}`, "width", `${percent}%`);
@@ -431,7 +445,7 @@ function showHelp() {
     )
     .join(
       "",
-    )}</div><div class="help-rules"><p><b>打出你的节奏</b>普攻近距离生效；技能与大招具有不同范围。每次按下触发一次招式，观察下方冷却与能量提示。</p><p><b>99 秒，一局定胜负</b>生命归零即结束；时间耗尽比较剩余生命比例，同时归零或生命比例相同为平局。木箱可破坏，招牌会响应攻击。</p><p><b>后退防守与资源争夺</b>站在地面并按住远离敌人的方向可防守，承受少量伤害并消耗能量；低段攻击需蹲下＋后退防守，空中近战需站立防守。能量不足会防御崩解。木箱奖励 16 能量；蓝色补给会定时刷新，双方同时靠近时无法领取。</p><p><b>暂停与声音</b>按 Esc 暂停。切换窗口会自动暂停。右上角音符可开关合成音效。</p></div><button class="button primary full" data-action="close-help">明白了，出发！ <span>→</span></button></section>`;
+    )}</div><div class="help-rules"><p><b>命中确认连段</b>普攻命中后，快速按技能或大招键可提前取消收招；技能命中后也可接大招。落空或被防守不能提前取消；连段大招会压住对手直到释放。</p><p><b>打出你的节奏</b>普攻近距离生效；技能与大招具有不同范围。每次按下触发一次招式，观察下方冷却与能量提示。</p><p><b>99 秒，一局定胜负</b>生命归零即结束；时间耗尽比较剩余生命比例，同时归零或生命比例相同为平局。木箱可破坏，招牌会响应攻击。</p><p><b>后退防守与资源争夺</b>站在地面并按住远离敌人的方向可防守，承受少量伤害并消耗能量；低段攻击需蹲下＋后退防守，空中近战需站立防守。能量不足会防御崩解。木箱奖励 16 能量；蓝色补给会定时刷新，双方同时靠近时无法领取。</p><p><b>暂停与声音</b>按 Esc 暂停。切换窗口会自动暂停。右上角音符可开关合成音效。</p></div><button class="button primary full" data-action="close-help">明白了，出发！ <span>→</span></button></section>`;
   el.dataset.resume = String(resume);
   el.querySelector(".help-rules").insertAdjacentHTML(
     "beforebegin",

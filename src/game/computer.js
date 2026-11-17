@@ -25,6 +25,19 @@ export class ComputerPlayer {
     const ranged = ["projectile", "beam"].includes(self.character.moves.skill.kind);
     const comfortable = ranged ? 4.8 : 1.8;
     const input = {};
+    if (self.currentMove && self.cancelWindow > 0) {
+      if (
+        self.cancelTargets.includes("ultimate") &&
+        self.cooldowns.ultimate <= 0 &&
+        self.energy >= self.character.moves.ultimate.cost &&
+        this.random() < 0.22
+      ) input.ultimate = true;
+      else if (
+        self.cancelTargets.includes("skill") &&
+        self.cooldowns.skill <= 0 &&
+        this.random() < 0.58
+      ) input.skill = true;
+    }
     const supplies=(state.supplies||[]).filter(s=>s.active&&!s.contested);
     if(self.energy<45&&distance>5&&supplies.length){
       const closest=supplies.reduce((a,b)=>Math.abs(a.x-self.x)<Math.abs(b.x-self.x)?a:b);

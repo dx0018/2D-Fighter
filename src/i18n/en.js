@@ -10,6 +10,12 @@ export const english = {
   "防御崩解": "Guard broken",
   "补给争夺中": "Supply contested",
   "补给已就绪": "Supply ready",
+  "命中确认": "HIT CONFIRM",
+  "命中确认连段": "Hit-confirm combos",
+  "可接技能／大招": "LINK: SKILL / SUPER",
+  "可接大招": "LINK: SUPER",
+  "普攻命中后及时按 G / K 接技能；按 H / L 接大招 · 前／后以敌人位置为准": "On hit, G / K link skills; H / L link supers · Forward/back follows your rival",
+  "普攻命中后，快速按技能或大招键可提前取消收招；技能命中后也可接大招。落空或被防守不能提前取消；连段大招会压住对手直到释放。": "After a basic hit, press skill or ultimate quickly to cancel recovery; skills can also link to an ultimate. Whiffs and blocks do not cancel recovery. A linked ultimate holds the rival through its release.",
   "后退防守与资源争夺": "Guard and contest supplies",
   "站在地面并按住远离敌人的方向可防守，承受少量伤害并消耗能量；低段攻击需蹲下＋后退防守，空中近战需站立防守。能量不足会防御崩解。木箱奖励 16 能量；蓝色补给会定时刷新，双方同时靠近时无法领取。": "Hold away while grounded to guard: take chip damage and spend energy. Crouch-guard low attacks; stand-guard aerial melee. Insufficient energy breaks your guard. Crates reward 16 energy. Blue supply stations respawn and cannot be collected while both players are nearby.",
 

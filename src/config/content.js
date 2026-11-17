@@ -31,6 +31,8 @@ export const characters = [
       attack: {
         name: "圆圆拳",
         description: "近距离直拳，命中恢复能量。",
+        cancelOnHit: ["skill", "ultimate"],
+        cancelWindow: 0.34,
         kind: "melee",
         animation: "jab",
         motion: { prepare: 0.35, reach: 0.77 },
@@ -75,6 +77,8 @@ export const characters = [
       skill: {
         name: "空气炮",
         description: "从伸直的手炮发射胸口高度空气弹；跳跃可闪避。",
+        cancelOnHit: ["ultimate"],
+        cancelWindow: 0.3,
         kind: "projectile",
         impact: { stop: 0.075, shake: 0.42 },
         damage: 15,
@@ -194,6 +198,8 @@ export const characters = [
       attack: {
         name: "快乐拍击",
         description: "有力的近身拍击，命中恢复能量。",
+        cancelOnHit: ["skill", "ultimate"],
+        cancelWindow: 0.34,
         kind: "melee",
         animation: "palm",
         motion: { prepare: 0.4, reach: 0.7 },
@@ -238,6 +244,8 @@ export const characters = [
       skill: {
         name: "天线光线",
         description: "从头顶天线向前斜射光线；近处蹲下可以躲过。",
+        cancelOnHit: ["ultimate"],
+        cancelWindow: 0.3,
         kind: "beam",
         animation: "antenna-beam",
         impact: { stop: 0.07, shake: 0.38 },

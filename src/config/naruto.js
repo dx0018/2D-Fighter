@@ -26,6 +26,8 @@ export const naruto = {
     attack: {
       name: "木叶直拳",
       description: "快速体术直拳，命中恢复能量；收招末段可接走位。",
+      cancelOnHit: ["skill", "ultimate"],
+      cancelWindow: 0.34,
       kind: "melee",
       animation: "ninja-jab",
       motion: { prepare: 0.3, reach: 0.85 },
@@ -70,6 +72,8 @@ export const naruto = {
     skill: {
       name: "螺旋丸",
       description: "掌心凝聚旋转查克拉，向前踏步推击；需要近身命中。",
+      cancelOnHit: ["ultimate"],
+      cancelWindow: 0.3,
       kind: "dash",
       animation: "rasengan",
       visual: "rasengan",

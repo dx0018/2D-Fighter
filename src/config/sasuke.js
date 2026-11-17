@@ -11,6 +11,7 @@ export const sasuke = {
   moves: {
     attack: {
       name:"草薙斩",description:"快速近身斩击，命中恢复能量；蹲下和空中有不同攻击。",
+      cancelOnHit:["skill","ultimate"],cancelWindow:.34,
       kind:"melee",animation:"sasuke-slash",visual:"sword-slash",motion:{prepare:.3,reach:.9},
       inputBuffer:.18,recoveryMovement:.5,damage:8,range:2.45,cooldown:.43,cost:0,
       windup:.1,active:.1,recovery:.22,knockback:3.4,stun:.22,impact:{stop:.03,shake:.2},color:"#d6c3ff",
@@ -21,6 +22,7 @@ export const sasuke = {
     },
     skill:{
       name:"须佐横劈",description:"身后显现紫色骨架，挥动查克拉剑向前横劈；只命中有效范围内的目标。",
+      cancelOnHit:["ultimate"],cancelWindow:.3,
       kind:"melee",animation:"susanoo-slash",visual:"susanoo-slash",damage:20,range:4.8,
       hitY:1.35,hitHeight:2.0,cooldown:3,cost:24,windup:.32,active:.16,recovery:.36,knockback:6,stun:.35,
       impact:{stop:.065,shake:.45},color:"#c39aff",
