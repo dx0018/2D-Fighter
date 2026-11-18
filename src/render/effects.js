@@ -44,6 +44,7 @@ export class CombatEffects {
     this.pool = new Map();
     this.pooledCount = 0;
     this.projectiles = [];
+    this.launchOffsets = new WeakMap();
     this.texture = glowTexture();
     this.geo = {
       ring: new THREE.TorusGeometry(1, 0.024, 6, 64),
@@ -135,6 +136,7 @@ export class CombatEffects {
       cached.group.position.set(0, 0, 0);
       cached.group.rotation.set(0, 0, 0);
       cached.group.scale.setScalar(1);
+      cached.beamEvent = undefined;
       this.scene.add(cached.group);
       this.effects.set(e.id, cached);
       return cached;
@@ -190,10 +192,11 @@ export class CombatEffects {
           this.particle(g, i % 3 ? "spark" : "star", i % 2 ? "#ffb7c7" : color),
         );
     } else if (e.type === "slash" || e.type === "dash") {
-      for (let i = 0; i < 3; i++)
-        data.rings.push(
-          this.mesh(g, "arc", i === 0 ? "#fff7df" : color, i === 0 ? 0.9 : 0.5),
-        );
+      if (e.type === "slash") {
+        for (let i = 0; i < 3; i++) {
+          data.rings.push(this.mesh(g, "arc", i === 0 ? "#fff7df" : color));
+        }
+      }
       data.halo = this.glow(g, color, 1.4, 0.2);
       for (let i = 0; i < 8; i++)
         data.sparks.push(this.particle(g, "spark", color));
@@ -241,10 +244,19 @@ export class CombatEffects {
     });
     d.extraGeometries?.forEach((geometry) => geometry.dispose());
   }
-  update(state, clock) {
+  update(state, clock, actors = []) {
+    const originFor = (owner, castId) => {
+      const m = actors[owner];
+      return castId != null && m?.skillOriginActive && state.fighters[owner]?.currentMove?.id === castId
+        ? m.skillOrigin
+        : null;
+    };
     const alive = new Set();
     let light = 0;
     for (const e of state.effects) {
+      const actor = actors[e.owner];
+      if (actor?.external && e.type === "slash" &&
+          ["rasengan", "sword-slash", "susanoo-slash"].includes(e.visual)) continue;
       if (
         e.type === "cast" &&
         e.castId &&
@@ -301,17 +313,20 @@ export class CombatEffects {
                 (f.crouching ? 0.55 : e.kind === "pulse" ? 1.0 : 1.7)),
             0.25,
           );
+        const origin = originFor(e.owner, e.castId);
+        if (origin) d.group.position.copy(origin);
         const big = e.ultimate;
-        d.halo.scale.setScalar((big ? 3.2 : 1.5) * (0.4 + a));
+        const compact = origin && !big ? .58 : 1;
+        d.halo.scale.setScalar((big ? 3.2 : 1.5) * (.4 + a) * compact);
         d.halo.material.opacity = 0.25 + a * 0.4;
         d.rings.forEach((r, i) => {
-          r.scale.setScalar((big ? 1.3 : 0.55) * (1 - a * 0.6) + i * 0.12);
+          r.scale.setScalar(((big ? 1.3 : .55) * (1 - a * .6) + i * .12) * compact);
           r.rotation.set(clock * (i % 2 ? 2 : -2), clock * 1.5 + i, clock * 2);
           r.material.opacity = 0.25 + a * 0.55;
         });
         d.sparks.forEach((p, i) => {
           const angle = i * 2.4 + clock * 2,
-            r = (1 - a) * (big ? 2.2 : 1) + 0.1;
+            r = ((1 - a) * (big ? 2.2 : 1) + .1) * compact;
           p.position.set(
             Math.cos(angle) * r,
             Math.sin(angle) * r * 0.8,
@@ -326,12 +341,25 @@ export class CombatEffects {
           this.light.color.set(e.color);
         }
       } else if (e.type === "beam") {
-        const span = e.range || 14,
-          sign = e.direction || 1,
-          width =
-            (e.radius ?? 0.7) *
-            (Math.sin(Math.PI * Math.min(a * 1.4, 1)) * 0.85 + 0.18);
-        d.group.rotation.z = (e.angle || 0) * sign;
+        const sign = e.direction || 1;
+        const range = e.range || 14;
+        const angle = e.angle || 0;
+        if (d.beamEvent !== e) {
+          d.beamEvent = e;
+          const origin = originFor(e.owner, e.castId);
+          d.beamOrigin = origin?.clone() ?? new THREE.Vector3(e.x, e.y, .35);
+          const direction = new THREE.Vector3(
+            e.x + sign * Math.cos(angle) * range,
+            e.y + Math.sin(angle) * range,
+            d.beamOrigin.z,
+          ).sub(d.beamOrigin);
+          d.beamSpan = direction.length();
+          d.group.quaternion.setFromUnitVectors(new THREE.Vector3(sign, 0, 0), direction.normalize());
+        }
+        d.group.position.copy(d.beamOrigin);
+        const span = d.beamSpan;
+        const strength = THREE.MathUtils.smoothstep(a, 0, .12);
+        const width = (e.radius ?? .7) * (.18 + strength * fade * .95);
         d.halo.scale.setScalar(e.ultimate ? 4 : 1.65);
         d.parts.forEach((p, i) => {
           p.position.x = (sign * span) / 2;
@@ -364,59 +392,63 @@ export class CombatEffects {
         this.light.position.copy(d.group.position);
         this.light.color.set(e.color);
       } else if (e.type === "pulse") {
-        const radius = (e.radius || 6.8) * Math.min(1, a * 1.8);
-        d.halo.scale.setScalar(e.visual==='supply'?1.3+a*1.5:3+a*5);
-        d.halo.material.opacity = fade * 0.5;
-        d.core.scale.set(radius, Math.max(0.1, 1 - a) * 2.2, radius * 0.5);
-        d.core.material.opacity = fade * 0.1;
+        const airborne = e.visual === "air-spin";
+        const owner = state.fighters[e.owner];
+        if (airborne && e.castId != null && owner?.currentMove?.id === e.castId) {
+          d.group.position.set(owner.x, owner.y + .77, 0);
+        }
+        const radius = (e.radius || 6.8) * Math.min(1, a * (airborne ? 3.6 : 1.8));
+        const intensity = airborne ? (1 - a) ** 2.4 : fade;
+        d.halo.scale.setScalar(airborne ? 1 + a * 2 : e.visual === "supply" ? 1.3 + a * 1.5 : 3 + a * 5);
+        d.halo.material.opacity = intensity * (airborne ? .22 : .5);
+        d.core.scale.set(radius, Math.max(.1, 1 - a) * (airborne ? .42 : 2.2), radius * .5);
+        d.core.material.opacity = intensity * .1;
         d.rings.forEach((r, i) => {
           r.rotation.set(
-            i < 2 ? -Math.PI / 2 : 0.1,
-            i > 1 ? i * 0.65 : 0,
+            airborne || i < 2 ? -Math.PI / 2 : .1,
+            !airborne && i > 1 ? i * .65 : 0,
             clock * (i % 2 ? -1 : 1),
           );
           r.position.y = i < 2 ? -0.5 : i * 0.16;
           r.scale.setScalar(Math.max(0.02, radius * (1 - i * 0.14)));
-          r.material.opacity = fade * 0.9;
+          r.material.opacity = intensity * (airborne ? .64 : .9);
         });
         d.sparks.forEach((p, i) => {
           const theta = (i / d.sparks.length) * Math.PI * 2,
             r = radius * (0.65 + rnd(i) * 0.4);
           p.position.set(
             Math.cos(theta) * r,
-            Math.sin(theta) * r * 0.45 + Math.sin(a * Math.PI) * 0.9,
-            Math.sin(theta * 2) * r * 0.25,
+            Math.sin(theta) * r * (airborne ? .12 : .45) + Math.sin(a * Math.PI) * .55,
+            Math.sin(theta * 2) * r * (airborne ? .46 : .25),
           );
           p.rotation.z = theta - Math.PI / 2;
-          p.scale.setScalar((i % 3 ? 0.6 : 0.3) * fade);
-          p.material.opacity = fade;
+          p.scale.setScalar((i % 3 ? .6 : .3) * intensity);
+          p.material.opacity = intensity;
         });
         light = Math.max(light, (e.visual==='supply'?.6:5) * fade);
         this.light.position.copy(d.group.position);
         this.light.color.set(e.color);
       } else if (e.type === "slash" || e.type === "dash") {
         const dash = e.type === "dash";
-        d.group.rotation.y = e.direction < 0 ? Math.PI : 0;
+        const direction = e.direction || 1;
+        const owner = state.fighters[e.owner];
+        if (dash && e.castId != null && owner?.currentMove?.id === e.castId) {
+          const socket = originFor(e.owner, e.castId);
+          d.group.position.set(owner.x - direction * .25, socket?.y ?? owner.y + (owner.crouching ? .5 : 1.25), 0);
+        }
+        d.group.rotation.y = direction < 0 ? Math.PI : 0;
         d.rings.forEach((r, i) => {
-          r.position.x = i * -0.16;
-          r.rotation.set(
-            dash ? Math.PI / 2 : 0.18,
-            dash ? Math.PI / 2 : 0.25,
-            -Math.PI * 0.55 + a * 0.8,
-          );
-          r.scale.set(
-            dash ? 0.7 : 0.85 + i * 0.14,
-            dash ? 1.25 : 1.1 + i * 0.14,
-            1,
-          );
-          r.material.opacity = fade * (i === 0 ? 0.9 : 0.35);
+          r.position.x = i * -.16;
+          r.rotation.set(.18, .25, -Math.PI * .55 + a * .8);
+          r.scale.set(.85 + i * .14, 1.1 + i * .14, 1);
+          r.material.opacity = fade * (i === 0 ? .75 : .26);
         });
-        d.halo.material.opacity = fade * 0.25;
+        d.halo.material.opacity = fade * (dash ? .12 : .25);
         d.sparks.forEach((p, i) => {
-          p.position.set(-a * (1 + i * 0.17), Math.sin(i * 5) * 0.7, 0.1);
+          p.position.set(-a * (1 + i * .17) - (dash ? .34 : 0), Math.sin(i * 5) * (dash ? .46 : .7), (rnd(i) - .5) * .6);
           p.rotation.z = Math.PI / 2;
-          p.scale.set(0.3, fade * (dash ? 1.6 : 0.5), 0.3);
-          p.material.opacity = fade * 0.6;
+          p.scale.set(dash ? .16 : .3, fade * (dash ? .65 + .4 * rnd(i) : .5), dash ? .16 : .3);
+          p.material.opacity = fade * (dash ? .54 : .6);
         });
       } else {
         if (d.log) {
@@ -471,6 +503,21 @@ export class CombatEffects {
       d.group.visible = !!p;
       if (!p) return;
       d.group.position.set(p.x, p.y, p.z || 0);
+      if (!this.launchOffsets.has(p)) {
+        const origin = p.move?.aim === "susanoo-bow" ? null : originFor(p.owner, p.castId);
+        const owner = state.fighters[p.owner];
+        const offset = origin && origin.clone().sub(new THREE.Vector3(
+          owner.x + p.direction * (p.move.originX ?? 1),
+          owner.y + p.move.height,
+          0,
+        ));
+        this.launchOffsets.set(p, offset);
+      }
+      const offset = this.launchOffsets.get(p);
+      if (offset) {
+        const blend = 1 - THREE.MathUtils.smoothstep(p.distance, 0, 1.6);
+        d.group.position.addScaledVector(offset, blend);
+      }
       if (p.move?.visual === "susanoo-arrow") {
         d.aimDirection ||= new THREE.Vector3();
         d.aimAxis ||= new THREE.Vector3(1, 0, 0);
@@ -514,8 +561,9 @@ export class CombatEffects {
         m.material.color.set(j % 2 ? "#e5ffff" : p.color);
         m.rotation.set(clock * 8 + j * 0.5, Math.PI / 2, 0);
         m.position.x = -j * 0.28;
-        m.scale.setScalar(r * (1.2 + j * 0.25));
-        m.material.opacity = 0.7 - j * 0.14;
+        const launch = 1 - THREE.MathUtils.smoothstep(p.distance, 0, 2);
+        m.scale.setScalar(r * (1.2 + j * 0.25 + launch * (j + 1) * .22));
+        m.material.opacity = .7 - j * .14 + launch * .16;
       });
     });
   }

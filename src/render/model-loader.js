@@ -155,6 +155,7 @@ export async function loadFighterModel(character) {
     currentAction: null,
     currentActionName: "",
     worldPosition: new THREE.Vector3(),
+    skillOrigin: new THREE.Vector3(),
     target: new THREE.Vector3(),
     forward: new THREE.Vector3(),
     pole: new THREE.Vector3(),

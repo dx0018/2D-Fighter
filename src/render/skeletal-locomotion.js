@@ -21,7 +21,7 @@ export function prepareLocomotion(m) {
   m.locomotion={bones,hips,legs,walk:0,phase:0,lastDistance:0,scratch:new THREE.Vector3()};
 }
 
-export function poseLocomotion(m,f,dt,walking) {
+export function poseLocomotion(m,f,dt,walking,skill) {
   const rig=m.locomotion;if(!rig)return;
   const hip=rig.bones[rig.hips];
   hip.position.copy(hip.userData.bindPose.position);
@@ -41,9 +41,16 @@ export function poseLocomotion(m,f,dt,walking) {
   const crouch=m.crouchBlend||0;
   const takeoff=Math.min(1,(f.jumpStartup||0)/.025);
   const landing=Math.min(1,(f.landingTimer||0)/.16)*(f.landingImpact||0);
-  const drop=(m.character.id==='doraemon'?.06:Math.min(.43,reach*.37))*crouch+Math.min(.06,reach*.1)*(takeoff+landing)+Math.min(.018,reach*.015)*(1-Math.cos(rig.phase*2))*rig.walk+Math.min(.09,reach*.1)*rig.walk;
+  const crouchDrop = m.type === "doraemon" ? .06 : m.type === "po" ? Math.min(.52, reach * .48) : Math.min(.43, reach * .37);
+  const drop = crouchDrop * crouch + Math.min(.06, reach * .1) * (takeoff + landing) +
+    Math.min(.018, reach * .015) * (1 - Math.cos(rig.phase * 2)) * rig.walk +
+    Math.min(.09, reach * .1) * rig.walk;
+  const compression = (skill?.pose.drop ?? 0) * (skill?.weight ?? 0);
+  const extension = (skill?.pose.step ?? 0) * (skill?.weight ?? 0) * (skill?.strike ?? 0);
+  const face = f.currentMove?.facing ?? f.facing ?? 1;
+  const lead = (face > 0 ? 0 : 1) ^ (m.frontAxis < 0 ? 1 : 0);
   m.root.updateMatrixWorld(true);
-  hip.getWorldPosition(rig.scratch);rig.scratch.y-=drop;
+  hip.getWorldPosition(rig.scratch);rig.scratch.y-=drop+compression;
   hip.parent.worldToLocal(rig.scratch);hip.position.copy(rig.scratch);
   for(const [i,leg] of rig.legs.entries()){
     const step=sampleStep(rig.phase+i*Math.PI,stride,Math.min(.17,reach*.16));
@@ -51,6 +58,10 @@ export function poseLocomotion(m,f,dt,walking) {
     rig.scratch.x+=step.x*rig.walk*(Math.sign(f.vx)||f.facing||1);
     rig.scratch.y+=step.lift*rig.walk;
     if(!f.grounded){rig.scratch.y+=reach*(i?.25:.18);rig.scratch.x+=(f.facing||1)*reach*(i?-.12:.15);}
+    if (extension) {
+      rig.scratch.x += face * extension * (i === lead ? 1 : -.28);
+      if (!f.grounded && i === lead) rig.scratch.y += extension * .34;
+    }
     m.visual.worldToLocal(rig.scratch);
     aimChain(m,m.visual,rig.bones,leg.names,[rig.scratch.x,rig.scratch.y,rig.scratch.z],[0,0,m.frontAxis],true);
   }

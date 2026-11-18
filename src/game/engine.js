@@ -533,6 +533,7 @@ export class Game {
         direction: cast.facing,
         range: move.range,
         owner: f.id,
+        castId: cast.id,
         angle: move.angle || 0,
         radius: move.beamRadius ?? 0.7,
         ultimate: cast.key === "ultimate",
@@ -548,6 +549,8 @@ export class Game {
         {
           radius: move.range,
           owner: f.id,
+          castId: cast.id,
+          visual: move.animation === "air-spin" ? "air-spin" : move.visual,
         },
       );
       this.state.shake = Math.max(this.state.shake, 0.35);
@@ -558,7 +561,7 @@ export class Game {
         f.y + (move.hitY ?? 1.2),
         move.color,
         0.32,
-        { direction: cast.facing, owner: f.id, visual: move.visual },
+        { direction: cast.facing, owner: f.id, castId: cast.id, visual: move.visual },
       );
   }
   collectStrike(f, cast, contacts) {

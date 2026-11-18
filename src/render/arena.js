@@ -257,7 +257,7 @@ export class ArenaRenderer {
     }
     for(const [i,supply] of (state.supplies||[]).entries())this.supplies[i]?.update(supply,this.clock);
     this.stage.update(this.clock);
-    this.fx.update(state, this.clock);
+    this.fx.update(state, this.clock, this.fighters);
     this.renderer.render(this.scene, this.camera);
     this.needsRender = false;
   }

@@ -36,7 +36,7 @@ export function animateFighter(m, f, dt, clock, index = 0, hitstop = 0, opponent
     m.frozen = hitstop > 0;
     if (hitstop > 0) dt = contactFrame ? Math.max(dt, 1 / 30) : 0;
     if (m.type === "sasuke") animateSasuke(m, f, dt, clock, opponent);
-    else animateExternal(m, f, dt, clock, hitstop);
+    else animateExternal(m, f, dt, clock);
     return;
   }
   const po = m.type === "po",
