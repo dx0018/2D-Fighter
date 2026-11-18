@@ -18,7 +18,7 @@ function turnWrist(m, hand, axis, direction, weight) {
   m.worldQuaternion.premultiply(m.deltaQuaternion);
   hand.parent.getWorldQuaternion(m.parentQuaternion).invert();
   const rotation = m.parentQuaternion.multiply(m.worldQuaternion);
-  hand.quaternion.rotateTowards(rotation, Math.min(hand.quaternion.angleTo(rotation) * weight, .95));
+  hand.quaternion.rotateTowards(rotation, Math.min(hand.quaternion.angleTo(rotation), .42) * weight);
 }
 
 const poses = {
@@ -81,11 +81,15 @@ export function animateSasuke(m,f,dt,clock,opponent=null) {
   const attack=cast?.key==='attack';
   const workingHand = attack ? "R" : front;
   for(const [side,label] of [[1,'L'],[-1,'R']]){
-    let target=[side*.50,1.95-m.sasukeCrouch*.22,.33-Math.cos(phase+(side>0?0:Math.PI))*.20*m.sasukeWalk];
+    let target = [
+      side * .60,
+      1.63 - m.sasukeCrouch * .22,
+      .16 - Math.cos(phase + (side > 0 ? 0 : Math.PI)) * .19 * m.sasukeWalk,
+    ];
     target[1]-=m.sasukeDefeat*.65;
     if(f.action==='victory'&&label==='R')target=[-.30,2.8,.3];
     if(!f.grounded)target=[side*.64,2.0,.25];
-    if (f.guarding && !cast) target = [side * .2, 2.2, .5];
+    if (f.guarding && !cast) target = [side * .29, 2.08, .46];
     if (pose) {
       const [prepare, release] = label === workingHand ? pose.lead : pose.support;
       const height = attack ? m.sasukeCrouch * .84 : 0;
@@ -96,7 +100,10 @@ export function animateSasuke(m,f,dt,clock,opponent=null) {
         return THREE.MathUtils.lerp(base, adjusted, motion.weight);
       });
     }
-    aimChain(m,m.visual,m.bones,['UpperArm_'+label,'Forearm_'+label,'Hand_'+label],target,[side*.7,-.2,.5]);
+    // Keep the elbow below and slightly behind the wrist as the arm folds.
+    aimChain(m, m.visual, m.bones,
+      ["UpperArm_" + label, "Forearm_" + label, "Hand_" + label],
+      target, [side * .34, -1, -.52]);
   }
   const fx=m.sasukeFx;
   const summon=['susanoo-slash','susanoo-guard'].includes(visual);
@@ -135,15 +142,14 @@ export function animateSasuke(m,f,dt,clock,opponent=null) {
       const seal = visual === "fireball";
       const open = visual === "chidori" && label === front;
       const side = label === "L" ? 1 : -1;
-      const wrist = m.bones["Hand_" + label];
-      wrist.rotateY(side * motion.weight * (grip ? .38 : seal ? -.55 : open ? -.78 : 0));
+
       for (const [i, digit] of ["Thumb", "Index", "Middle", "Ring", "Little"].entries()) {
         const bone = m.bones[digit + "_" + label];
         if (!bone) continue;
-        const curl = grip ? (i === 0 ? -.46 : .59 + i * .04) : seal && (i === 0 || i > 2) ? .48 : .055;
+        const curl = grip ? (i === 0 ? -.33 : .42 + i * .035) : seal && (i === 0 || i > 2) ? .48 : .055;
         bone.rotateZ(side * motion.weight * curl);
         const tip = m.bones[digit + "Tip_" + label];
-        if (tip) tip.rotateZ(side * motion.weight * (grip ? (i === 0 ? -.32 : .84) : curl * .64));
+        if (tip) tip.rotateZ(side * motion.weight * (grip ? (i === 0 ? -.25 : .57) : curl * .64));
         if (open) bone.rotateX((i - 2) * .11 * motion.weight);
       }
     }
