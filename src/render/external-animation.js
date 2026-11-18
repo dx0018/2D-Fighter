@@ -28,7 +28,7 @@ function play(m, name, oneShot = false, token = "") {
   }
   next.enabled = true;
   next.fadeIn(previous ? 0.12 : 0.04).play();
-  previous?.fadeOut(0.12);
+  if (previous !== next) previous?.fadeOut(0.12);
   m.currentAction = next;
   m.currentActionName = name;
   if (!oneShot) next.timeScale = m.character.model.rig === "mixamo" ? 1.12 : 1;
@@ -40,6 +40,7 @@ function animationName(m, f, walking, airborne, crouch, victory) {
     clips = m.clips || {};
   if (rig === "mixamo") {
     if (victory && f.action === "victory") return [clips.victory, true];
+    if (f.currentMove?.move.animation === "ninja-jab" && !airborne) return [clips.attack, true];
     if (airborne) return [clips.jump, true];
     return [walking ? clips.walk : clips.idle, false];
   }
@@ -136,6 +137,7 @@ function poseArms(m, f, face, skill) {
   const guarding = f.guarding && !f.currentMove;
   if (!skill?.weight && !guarding) return;
   const rig = m.character.model.rig;
+  if (rig === "mixamo" && f.currentMove?.move.animation === "ninja-jab") return;
   const front = leadIndex(m, face);
   for (let index = 0; index < 2; index++) {
     const names = armNames(rig, index);
@@ -203,10 +205,24 @@ function updateDetails(m, f, dt, clock) {
     m.rasengan.visible = live;
     if (live && hand) {
       hand.getWorldPosition(origin);
-      const direction = m.target.set(face, cast.context === "air" ? -.4 : 0, 0).normalize();
+      const fingers = hand.children.filter(b => b.isBone && /Hand(Index|Pinky)1/.test(b.name));
+      if (fingers.length === 2) {
+        const lateral = fingers[0].getWorldPosition(m.target).sub(origin);
+        const across = fingers[1].getWorldPosition(m.joint).sub(origin);
+        const palm = m.pole.crossVectors(lateral, across).normalize();
+        if (front === 1) palm.negate();
+        const desired = m.forward.set(.18 * face, .96, .20).normalize();
+        const turn = m.deltaQuaternion.setFromUnitVectors(palm, desired);
+        hand.getWorldQuaternion(m.worldQuaternion).premultiply(turn);
+        hand.parent.getWorldQuaternion(m.parentQuaternion).invert();
+        hand.quaternion.slerp(m.parentQuaternion.multiply(m.worldQuaternion), m.skillPose?.weight ?? 0);
+        fingers[0].getWorldPosition(m.target);
+        fingers[1].getWorldPosition(m.joint);
+        origin.lerp(m.target.add(m.joint).multiplyScalar(.5), .7);
+      }
       const charge = THREE.MathUtils.smoothstep(elapsed, 0, windup);
       const fade = 1 - THREE.MathUtils.smoothstep(elapsed, windup + cast.move.active * .52, windup + cast.move.active);
-      origin.addScaledVector(direction, .08 + charge * .19);
+      origin.y += .08 + charge * .18;
       m.rasengan.position.copy(m.root.worldToLocal(origin));
       spinChakraOrb(m.rasengan, clock * 2, (.08 + .26 * charge) * Math.max(.025, fade));
     }
@@ -218,7 +234,8 @@ function updateDetails(m, f, dt, clock) {
       hand.getWorldPosition(origin);
       if (support) {
         support.getWorldPosition(m.target);
-        if (m.target.x * face > origin.x * face) origin.copy(m.target);
+        const gather = 1 - THREE.MathUtils.smoothstep(elapsed, windup * .42, windup * .76);
+        origin.lerp(m.target, .5 * gather);
       }
       const charge = THREE.MathUtils.smoothstep(elapsed, 0, windup);
       origin.x += face * (.16 + THREE.MathUtils.smoothstep(elapsed, 0, windup * .74) * .36);
@@ -239,7 +256,8 @@ function updateDetails(m, f, dt, clock) {
       const angle = cast.move.angle || 0;
       hand.getWorldPosition(m.cannon.position);
       m.root.worldToLocal(m.cannon.position);
-      m.cannon.position.x += face * .07;
+      const kick = m.skillPose?.recoil ?? 0;
+      m.cannon.position.x += face * (.07 - .055 * kick);
       m.cannon.rotation.set(0, 0, (face < 0 ? Math.PI : 0) + face * angle);
       m.cannon.updateWorldMatrix(true, false);
       m.cannon.localToWorld(origin.set(.44, 0, 0));
@@ -263,12 +281,13 @@ function updateDetails(m, f, dt, clock) {
       );
     }
     m.antenna.quaternion.copy(m.visual.quaternion).multiply(m.screenFacing);
-    m.antenna.rotation.z = damp(
-      m.antenna.rotation.z,
-      (f.currentMove?.move.animation === "antenna-beam" ? -0.12 : 0) + Math.sin(clock * 7) * 0.025 + f.vx * 0.006,
+    m.antennaTilt = damp(
+      m.antennaTilt ?? 0,
+      (cast?.move.animation === "antenna-beam" ? face * m.skillPose.weight * (.19 - .32 * m.skillPose.strike) : 0) + Math.sin(clock * 7) * .025 + f.vx * .006,
       dt,
       8,
     );
+    m.antenna.rotateZ(m.antennaTilt);
     if (cast?.move.animation === "antenna-beam") {
       m.antenna.localToWorld(origin.set(0, .55, 0));
       m.skillOriginActive = true;
@@ -318,9 +337,15 @@ export function animateExternal(m, f, dt, clock) {
   const targetYaw = m.visual.userData.baseYaw + face * 0.84;
   m.yaw = damp(m.yaw ?? m.visual.rotation.y, targetYaw, dt, 18);
   const turn = 2 * Math.PI;
-  m.spinOffset = nextSkill?.pose.spin
-    ? face * turn * nextSkill.sweep
-    : damp(THREE.MathUtils.euclideanModulo((m.spinOffset ?? 0) + Math.PI, turn) - Math.PI, 0, dt, 24);
+  if (nextSkill?.pose.spin) {
+    const { windup, active, recovery } = cast.move;
+    const gather = THREE.MathUtils.smoothstep(cast.elapsed, 0, windup * .65);
+    const spin = THREE.MathUtils.smoothstep(cast.elapsed, windup * .58, windup + active + recovery * .15);
+    m.spinOffset = face * (turn * spin - .18 * gather * (1 - spin));
+  } else {
+    const remaining = THREE.MathUtils.euclideanModulo((m.spinOffset ?? 0) + Math.PI, turn) - Math.PI;
+    m.spinOffset = damp(remaining, 0, dt, 24);
+  }
   m.visual.rotation.y = m.yaw + m.spinOffset;
   const choice = animationName(m, f, walking, airborne, crouch, victory);
   const token = choice[1] ? cast?.id ?? (victory ? "victory" : "") : "";
@@ -328,6 +353,8 @@ export function animateExternal(m, f, dt, clock) {
   const chest = m.chest;
   if (chest) chest.quaternion.copy(rest(chest).quaternion);
   if (choice[0]) play(m, choice[0], choice[1], token);
+  if (cast?.move.animation === "ninja-jab" && m.currentAction?.getClip().name === "punch")
+    m.currentAction.setDuration(cast.move.windup + cast.move.active + cast.move.recovery);
   m.mixer.update(dt);
   if (rig === "doraemon") doraPose(m, f, dt, walking, crouch, airborne, hurt);
   const lean = (skill?.pose.lean ?? 0) * (skill?.weight ?? 0);

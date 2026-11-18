@@ -31,7 +31,8 @@ export function poseSusanooArchery(m, fighter, cast, opponent, fade) {
   const elapsed = cast.elapsed;
   const reveal = THREE.MathUtils.smoothstep(elapsed, 0, 0.22);
   const draw = THREE.MathUtils.smoothstep(elapsed, 0.15, cast.move.windup);
-  const drawLength = THREE.MathUtils.lerp(cfg.drawStart, shot.drawEnd, draw);
+  const release = THREE.MathUtils.smoothstep(elapsed, cast.move.windup, cast.move.windup + cast.move.active);
+  const drawLength = THREE.MathUtils.lerp(cfg.drawStart, shot.drawEnd, draw * (1 - release));
   const fullRoot = m.fullSusanoo || fx.skeleton.root;
   fullRoot.position.set(shot.root.x - fighter.x, shot.root.y - Math.max(0, fighter.y), shot.root.z);
   fullRoot.rotation.set(0, shot.facing * Math.PI / 2, 0);
@@ -46,13 +47,16 @@ export function poseSusanooArchery(m, fighter, cast, opponent, fade) {
     matrix: new THREE.Matrix4(), worldQ: new THREE.Quaternion(), parentQ: new THREE.Quaternion(),
   };
   s.grip.set(shot.grip.x, shot.grip.y, shot.grip.z);
+  s.grip.y -= .52 * (1 - THREE.MathUtils.smoothstep(elapsed, 0, .26));
   s.direction.set(shot.direction.x, shot.direction.y, shot.direction.z);
   s.up.set(shot.up.x, shot.up.y, shot.up.z);
   s.nock.copy(s.grip).addScaledVector(s.direction, -drawLength);
   m.root.updateMatrixWorld(true);
   if (m.fullBones) {
     resetBones(m.fullBones);
-    aimChain(m, fullRoot, m.fullBones, ['UpperArm_L', 'Forearm_L', 'Hand_L'], cfg.grip, [1, 0, 0.5]);
+    m.fullBones.Chest.rotation.x += .045 * draw * (1 - release) - .08 * Math.sin(Math.PI * release);
+    s.point.copy(s.grip); fullRoot.worldToLocal(s.point);
+    aimChain(m, fullRoot, m.fullBones, ['UpperArm_L', 'Forearm_L', 'Hand_L'], s.point.toArray(), [1, 0, 0.5]);
     s.point.copy(s.nock);fullRoot.worldToLocal(s.point);
     aimChain(m, fullRoot, m.fullBones, ['UpperArm_R', 'Forearm_R', 'Hand_R'], [s.point.x, s.point.y, s.point.z], [-1, 0, 0.5]);
   }

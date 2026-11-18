@@ -43,6 +43,12 @@ function makeSusanooBow() {
 export function makeSasukeEffects() {
   const skeleton=makeSusanooSkeleton();
   const sword=new THREE.Mesh(new THREE.BoxGeometry(.065,1.15,.035),new THREE.MeshStandardMaterial({color:"#dbe1ff",metalness:.6,roughness:.3}));sword.visible=false;
+  const gripMaterial = new THREE.MeshStandardMaterial({color:"#292333", roughness:.74});
+  const grip = new THREE.Mesh(new THREE.CylinderGeometry(.045,.048,.24,10), gripMaterial);
+  grip.position.y = -.49;
+  const guard = new THREE.Mesh(new THREE.BoxGeometry(.23,.035,.095), gripMaterial);
+  guard.position.y = -.36;
+  sword.add(grip, guard);
   const slash=new THREE.Mesh(new THREE.TorusGeometry(2.1,.055,5,40,Math.PI*.8),glow("#d6b1ff",.8));slash.visible=false;
   const lightning=new THREE.Group();
   const mat=glow("#b7e1ff");

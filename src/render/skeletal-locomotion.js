@@ -57,7 +57,19 @@ export function poseLocomotion(m,f,dt,walking,skill) {
     rig.scratch.copy(leg.ankle);m.visual.localToWorld(rig.scratch);
     rig.scratch.x+=step.x*rig.walk*(Math.sign(f.vx)||f.facing||1);
     rig.scratch.y+=step.lift*rig.walk;
-    if(!f.grounded){rig.scratch.y+=reach*(i?.25:.18);rig.scratch.x+=(f.facing||1)*reach*(i?-.12:.15);}
+    if (walking && step.support && !extension) {
+      if (leg.plantCycle !== step.cycle || Math.abs(rig.scratch.x - leg.plantX) > reach * .6) {
+        leg.plantCycle = step.cycle;
+        leg.plantX = rig.scratch.x;
+      }
+      rig.scratch.x = leg.plantX;
+    } else leg.plantCycle = null;
+    if (!f.grounded) {
+      const rise = THREE.MathUtils.smoothstep(f.vy || 0, -5, 6);
+      const leading = i === lead;
+      rig.scratch.y += reach * (.09 + rise * (leading ? .18 : .29));
+      rig.scratch.x += face * reach * (leading ? .14 : -.16) * (.5 + rise * .5);
+    }
     if (extension) {
       rig.scratch.x += face * extension * (i === lead ? 1 : -.28);
       if (!f.grounded && i === lead) rig.scratch.y += extension * .34;

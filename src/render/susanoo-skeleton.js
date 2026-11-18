@@ -124,21 +124,29 @@ export function makeSusanooSkeleton() {
     link(lower,[-.07,-.04,0],[-.10,-.86,0],.065);
     link(lower,[.07,-.04,0],[.10,-.86,0],.065);
     spike(lower,[[side*.12,-.3,-.04],[side*.29,-.55,-.06],[side*.15,-.86,-.04]],.09,edge);
-    sphere(lower,[0,-.94,0],[.18,.10,.11]);
+    const palm = new THREE.Group();
+    sphere(palm,[0,-.94,0],[.18,.10,.11]);
     for(let i=0;i<5;i++){
       const x=(i-2)*.085;
-      link(lower,[x*.65,-.96,0],[x*1.15,-1.15,.015],.035);
-      spike(lower,[[x*1.15,-1.14,.015],[x*1.55,-1.35,.06],[x*1.48,-1.54,.19],[x*1.2,-1.58,.28]],.038,edge);
+      link(palm,[x*.65,-.96,0],[x*1.15,-1.15,.015],.035);
+      spike(palm,[[x*1.15,-1.14,.015],[x*1.55,-1.35,.06],[x*1.48,-1.54,.19],[x*1.2,-1.58,.28]],.038,edge);
     }
-    forearm.add(batch(lower));arms.push({shoulder,forearm});
+    forearm.add(batch(lower));
+    const wrist = new THREE.Group();
+    wrist.position.y = -.92;
+    forearm.add(wrist);
+    const hand = batch(palm);
+    hand.position.y = .92;
+    wrist.add(hand);
+    arms.push({shoulder, forearm, wrist});
   }
   const bladeRaw=new THREE.Group();
   plate(bladeRaw,[[-.11,0],[-.18,2.35],[0,2.90],[.18,2.35],[.11,0]],-.035,edge,.07);
   plate(bladeRaw,[[-.035,.1],[-.065,2.37],[0,2.76],[.065,2.37],[.035,.1]],.045,energy,.008);
   link(bladeRaw,[0,-.33,0],[0,.06,0],.065);
   link(bladeRaw,[-.27,.02,0],[.27,.02,0],.035,edge);
-  const blade=batch(bladeRaw);blade.position.set(0,-1.15,.15);blade.rotation.x=Math.PI/2;
-  arms[1].forearm.add(blade);
+  const blade=batch(bladeRaw);blade.position.set(0,-.23,.15);blade.rotation.x=Math.PI/2;
+  arms[1].wrist.add(blade);
   root.visible=false;
-  return {root,arms,materials};
+  return {root,arms,materials,blade};
 }
